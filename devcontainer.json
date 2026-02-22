@@ -1,0 +1,28 @@
+{
+    "name": "Intranet Quera-Fablab",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+    "features": {},
+    "forwardPorts": [
+        3000
+    ],
+    "portsAttributes": {
+        "3000": {
+            "label": "App",
+            "onAutoForward": "notify",
+            "visibility": "public"
+        }
+    },
+    "postCreateCommand": "npm install",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "bradlc.vscode-tailwindcss"
+            ],
+            "settings": {
+                "editor.formatOnSave": true
+            }
+        }
+    }
+}
