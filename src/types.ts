@@ -39,7 +39,9 @@ export interface Session {
   start_time: string;
   end_time: string;
   title?: string;
+  image_url?: string;
   description?: string;
+  deadline?: string;
   status?: 'pending' | 'approved';
   max_participants?: number;
   participants: Participant[];
