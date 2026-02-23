@@ -442,19 +442,21 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                                                                 layoutId={`session-${s.id}`}
                                                                 key={s.id}
                                                                 draggable={canDragSessions}
-                                                                onDragStart={(e) => {
-                                                                    draggedSessionRef.current = { id: s.id, type: s.type };
-                                                                    e.dataTransfer.setData('text/plain', String(s.id));
-                                                                    e.dataTransfer.effectAllowed = 'move';
+                                                                onDragStart={(e: DragEvent) => {
+                                                                    const dragEvent = e as DragEvent & { dataTransfer: DataTransfer };
+                                                                    dragEvent.dataTransfer.setData('text/plain', String(s.id));
+                                                                    dragEvent.dataTransfer.effectAllowed = 'move';
                                                                 }}
                                                                 onClick={() => {
                                                                     if (isSelectionMode) {
-                                                                        setSelectedSessionIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
+                                                                        setSelectedSessionIds((prev) =>
+                                                                            prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id]
+                                                                        );
                                                                     } else {
                                                                         setSelectedSession(s);
                                                                     }
                                                                 }}
-                                                                className={`p-3 rounded-xl border-2 ${bgColor} ${borderColor} cursor-pointer hover:shadow-lg transition-all relative group overflow-hidden ${isSelected ? 'ring-4 ring-red-500 scale-95 opacity-50' : ''} ${canDragSessions ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                                                className={`p-3 rounded-xl border-2 ${bgColor} ${borderColor} cursor-pointer hover:shadow-lg transition-all relative group overflow-hidden`}
                                                             >
                                                                 <div className="flex items-center gap-1 text-[9px] font-black text-zinc-400 mb-1 uppercase tracking-widest">
                                                                     <Clock size={10} />
