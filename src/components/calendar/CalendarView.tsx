@@ -446,6 +446,7 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                                                                     const dragEvent = e as DragEvent & { dataTransfer: DataTransfer };
                                                                     dragEvent.dataTransfer.setData('text/plain', String(s.id));
                                                                     dragEvent.dataTransfer.effectAllowed = 'move';
+                                                                    draggedSessionRef.current = { id: s.id, type: s.type };
                                                                 }}
                                                                 onClick={() => {
                                                                     if (isSelectionMode) {
