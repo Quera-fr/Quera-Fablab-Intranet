@@ -29,7 +29,7 @@ async function loginAsBeneficiary(page: any) {
     await page.fill('input[type="password"]', 'password123');
 
     await Promise.all([
-        page.waitForResponse(r => r.url().includes('/api/login')),
+        page.waitForResponse((r: any) => r.url().includes('/api/login')),
         page.click('button[type="submit"]'),
     ]);
 
