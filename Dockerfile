@@ -17,7 +17,7 @@ RUN npm ci
 COPY . .
 
 RUN npm run build
-
+RUN npx playwright install-deps
 # Expose ports
 # 3000 is used for the API server
 # 5173 is the default Vite preview port, but we will likely run the built app through the same server
