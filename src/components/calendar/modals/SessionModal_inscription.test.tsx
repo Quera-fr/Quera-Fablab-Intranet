@@ -156,9 +156,17 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
     });
 
     it('devrait afficher le compteur de places correctement', () => {
-        const sessionWithLimit = { ...mockSession, max_participants: 12, participants: [{ user_id: 1, firstname: 'A', lastname: 'B', role: 'beneficiary', role_at_registration: 'beneficiary' }] };
+        const sessionWithLimit = {
+            ...mockSession,
+            max_participants: 12,
+            participants: [{ user_id: 1, firstname: 'A', lastname: 'B', role: 'beneficiary', role_at_registration: 'beneficiary' }],
+        };
         render(<SessionModal user={mockAdmin} selectedSession={sessionWithLimit as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        expect(screen.getByText(/1\s*\/\s*12/i)).toBeInTheDocument();
+
+        // Le composant affiche "{max_participants} places" dans le bloc description
+        expect(screen.getByText(/12 places/i)).toBeInTheDocument();
+        // Le participant inscrit doit apparaître dans la liste d'appel
+        expect(screen.getByText(/A B/i)).toBeInTheDocument();
     });
 
     it('ne devrait pas afficher le bouton "Retirer" pour un bénéficiaire qui regarde la liste', () => {

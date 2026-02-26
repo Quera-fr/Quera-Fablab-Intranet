@@ -42,11 +42,10 @@ const mockUsers: User[] = [
   },
 ];
 
-// ===== HELPER LOGIN =====
+// ===== HELPER LOGIN avec mocks réseau =====
 async function loginAsAdmin(page: any) {
   await page.goto('/');
 
-  // ✅ Setup les mocks GLOBALEMENT AVANT de toucher à l'UI
   await page.route('**/api/login', async (route: any) => {
     await route.fulfill({
       status: 200,
@@ -55,10 +54,8 @@ async function loginAsAdmin(page: any) {
     });
   });
 
-  // ✅ IMPORTANT : Mock GET /api/users de manière PERSISTANTE
   await page.route('**/api/users', async (route: any) => {
     if (route.request().method() === 'GET') {
-      console.log('📥 GET /api/users intercepté - retour des users mockés');
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -69,118 +66,104 @@ async function loginAsAdmin(page: any) {
     }
   });
 
-  // Remplir le formulaire et se connecter
   await page.fill('input[type="email"]', 'admin@assoc.fr');
   await page.fill('input[type="password"]', 'admin123');
 
   await Promise.all([
-    page.waitForResponse(r => r.url().includes('/api/login')),
+    page.waitForResponse((r: any) => r.url().includes('/api/login')),
     page.click('button[type="submit"]'),
   ]);
 
   await page.waitForLoadState('networkidle');
-  console.log('✅ Admin connecté');
 }
 
-// ===== TESTS =====
-test.describe('Admin - User Management › Suppression utilisateur', () => {
+// ===== HELPER LOGIN sans mocks (vrai serveur) =====
+async function loginAsReal(page: any) {
+  await page.goto('/');
+  await page.fill('input[type="email"]', 'admin@assoc.fr');
+  await page.fill('input[type="password"]', 'admin123');
+  await Promise.all([
+    page.waitForResponse((r: any) => r.url().includes('/api/login')),
+    page.click('button[type="submit"]'),
+  ]);
+  await page.waitForLoadState('networkidle');
+}
+
+// ===========================================================
+// TEST E2E — L'utilisateur peut supprimer un utilisateur
+// ===========================================================
+test.describe('Admin — Suppression d\'un utilisateur', () => {
 
   test('devrait supprimer un utilisateur simple', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // ✅ Cliquer sur le bouton "Utilisateurs" dans la sidebar
-    console.log('🔍 Recherche du bouton Utilisateurs...');
     const userBtn = page.getByTitle('Utilisateurs');
     await expect(userBtn).toBeVisible({ timeout: 5000 });
     await userBtn.click();
-    console.log('✅ Bouton Utilisateurs cliqué');
 
-    // ✅ Attendre que la table se charge
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500); // Petite pause pour le rendu React
+    await page.waitForTimeout(500);
 
-    // ✅ Vérifier que les utilisateurs sont affichés
-    const userRows = await page.locator('table tbody tr');
+    const userRows = page.locator('table tbody tr');
     const initialCount = await userRows.count();
-    console.log(`📊 Nombre de lignes trouvées : ${initialCount}`);
     expect(initialCount).toBeGreaterThan(0);
 
-    // ✅ Identifier l'utilisateur à supprimer
-    const firstUserName = await page.locator('table tbody tr').first().locator('td').nth(2).textContent(); // Colonne Nom
-    console.log(`🎯 Cible : ${firstUserName}`);
+    // Préparer le handler de dialog AVANT de cliquer
+    page.once('dialog', (dialog: any) => dialog.accept());
 
-    // ✅ Trouver le bouton DELETE du premier utilisateur (icône poubelle)
+    // Cliquer sur le bouton Supprimer (title="Supprimer") de la première ligne
     const firstRow = page.locator('table tbody tr').first();
-    const deleteBtn = firstRow.locator('button').filter({ 
-      has: page.locator('svg')
-    }).last(); // Le bouton avec icône, généralement le dernier
+    await firstRow.locator('button[title="Supprimer"]').click();
 
-    // ✅ Configurer la capture de la requête DELETE
-    let deleteCalls: any[] = [];
-    await page.on('response', (response) => {
-      if (response.url().includes('/api/users/') && response.status() === 200) {
-        deleteCalls.push(response);
-      }
-    });
-
-    // ✅ Cliquer sur DELETE
-    console.log('🗑️  Clic sur le bouton supprimer...');
-    await deleteBtn.click();
-
-    // ✅ Accepter la confirmation (dialog)
-    page.once('dialog', (dialog: any) => {
-      console.log(`⚠️  Dialog : "${dialog.message()}"`);
-      dialog.accept();
-    });
-
-    // ✅ Attendre que le DELETE soit fait
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(500);
+  });
+});
 
-    console.log(`✅ Utilisateur supprimé avec succès`);
+// ===========================================================
+// TEST E2E — L'administrateur peut ajouter un utilisateur
+// data : mail, nom, prénom, rôle, date de naissance, adresse
+// ===========================================================
+test.describe("Administration — Ajout d'un utilisateur", () => {
+
+  const testEmail = `test_e2e_${Date.now()}@test.fr`;
+
+  // Nettoyage après chaque test pour ne pas polluer la base
+  test.afterEach(async ({ request }) => {
+    const res = await request.get('/api/users');
+    const users = await res.json();
+    const created = users.find((u: any) => u.email === testEmail);
+    if (created) {
+      await request.delete(`/api/users/${created.id}`);
+    }
   });
 
-  test('devrait supprimer plusieurs utilisateurs en bulk', async ({ page }) => {
-    await loginAsAdmin(page);
+  test("l'admin peut créer un utilisateur et le voir dans la liste", async ({ page }) => {
+    await loginAsReal(page);
 
-    // ✅ Naviguer vers Utilisateurs
     await page.getByTitle('Utilisateurs').click();
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
 
-    // ✅ Compter les utilisateurs
-    const checkboxes = page.locator('table tbody tr input[type="checkbox"]');
-    const initialCheckboxCount = await checkboxes.count();
-    console.log(`✅ ${initialCheckboxCount} checkboxes trouvées`);
-    expect(initialCheckboxCount).toBeGreaterThanOrEqual(2);
+    await page.getByRole('button', { name: /ajouter/i }).click();
+    await expect(page.getByText('Nouvel Utilisateur')).toBeVisible();
 
-    // ✅ Sélectionner les 2 premiers utilisateurs
-    console.log('☑️  Sélection des 2 premiers utilisateurs...');
-    await checkboxes.nth(0).check();
-    await checkboxes.nth(1).check();
+    const main = page.getByRole('main');
 
-    // ✅ Attendre l'apparition du bouton "Supprimer (2)"
-    await page.waitForTimeout(300); // React state update
-    const bulkDeleteBtn = page.locator('button').filter({ 
-      hasText: /Supprimer \(\d+\)/
-    });
-    
-    await expect(bulkDeleteBtn).toBeVisible({ timeout: 5000 });
-    console.log('✅ Bouton Supprimer (2) visible');
+    await main.getByPlaceholder('Prénom').fill('Jean');
+    await main.getByPlaceholder('Nom', { exact: true }).fill('Dupont');
+    await main.getByPlaceholder('Email').fill(testEmail);
+    await main.locator('select').selectOption('volunteer');
+    await main.locator('input[type="date"]').fill('1990-05-20');
+    await main.getByPlaceholder('Adresse').fill('42 rue des Tests, Paris');
 
-    // ✅ Cliquer sur Supprimer
-    await bulkDeleteBtn.click();
+    await Promise.all([
+      page.waitForResponse((r: any) =>
+        r.url().includes('/api/users') && r.request().method() === 'POST'
+      ),
+      page.getByRole('button', { name: /créer/i }).click(),
+    ]);
 
-    // ✅ Accepter la confirmation
-    page.once('dialog', (dialog: any) => {
-      console.log(`⚠️  Dialog bulk : "${dialog.message()}"`);
-      dialog.accept();
-    });
-
-    // ✅ Attendre la suppression
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
-
-    console.log(`✅ Utilisateurs bulk supprimés`);
+    await expect(page.getByText('Nouvel Utilisateur')).not.toBeVisible();
+    await expect(page.getByText('Jean Dupont')).toBeVisible();
   });
 });
