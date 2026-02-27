@@ -32,7 +32,15 @@ const mockBeneficiaryUser: User = {
     dob: '2005-06-15',
     address: '12 rue des Tests',
 };
-
+const mockAdminUser: User = {
+    id: 1,
+    email: 'admin@test.com',
+    lastname: 'Admin',
+    firstname: 'Super',
+    role: 'admin',
+    dob: '1980-01-01',
+    address: '1 rue du Chef',
+};
 describe('App — déconnexion', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -77,3 +85,44 @@ describe('App — déconnexion', () => {
         });
     });
 });
+   // --- TEST 2 : Administrateur ---
+    it('gère la connexion et la déconnexion de l\'administrateur', async () => {
+        // setup fetch mock for both login and users list
+        (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+            if (url.includes('/api/login')) {
+                return Promise.resolve({ ok: true, json: async () => mockAdminUser });
+            }
+            if (url.includes('/api/users')) {
+                // return empty array so testUsers.map works
+                return Promise.resolve({ ok: true, json: async () => [] });
+            }
+            return Promise.reject(new Error('unexpected fetch: ' + url));
+        });
+
+        render(<App />);
+
+        expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
+        
+
+        const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+        const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+
+        await userEvent.clear(emailInput);
+        await userEvent.type(emailInput, 'admin@test.com');
+        await userEvent.clear(passwordInput);
+          await userEvent.type(passwordInput, 'adminpass');
+        await userEvent.click(screen.getByRole('button', { name: /se connecter/i }));
+
+       await userEvent.click(screen.getByTitle('Utilisateurs'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('user-management')).toBeInTheDocument();
+        });
+
+        const logoutButton = screen.getByTitle('Déconnexion');
+        await userEvent.click(logoutButton);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
+        });
+    });
