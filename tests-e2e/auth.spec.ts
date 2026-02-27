@@ -11,6 +11,16 @@ const mockBeneficiary: User = {
     dob: '2005-06-15',
     address: '1 Rue du Test',
 };
+const mockAdmin: User = {
+    id: 1,
+    email: 'admin@assoc.fr',
+    lastname: 'Admin',
+    firstname: 'User',
+    role: 'admin',
+    dob: '1990-01-01',
+    address: '1 Rue Admin',
+};
+
 
 // Helper réutilisable : simule une connexion bénéficiaire réussie
 async function loginAsBeneficiary(page: any) {
@@ -34,6 +44,29 @@ async function loginAsBeneficiary(page: any) {
     ]);
 
     // On attend que le rendu React soit stable
+    await page.waitForLoadState('networkidle');
+}
+
+// helper pour admin
+async function loginAsAdmin(page: any) {
+    await page.goto('/');
+
+    await page.route('**/api/login', async (route: any) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(mockAdmin),
+        });
+    });
+
+    await page.fill('input[type="email"]', 'admin@assoc.fr');
+    await page.fill('input[type="password"]', 'admin123');
+
+    await Promise.all([
+        page.waitForResponse(r => r.url().includes('/api/login')),
+        page.click('button[type="submit"]'),
+    ]);
+
     await page.waitForLoadState('networkidle');
 }
 
@@ -78,6 +111,29 @@ test.describe('Authentification — Bénéficiaire', () => {
 
         // On doit retomber sur le formulaire de login
         await expect(page.locator('button[type="submit"]')).toBeVisible();
+        await expect(page.locator('h2', { hasText: 'Planning' })).not.toBeVisible();
+    });
+});
+// ===== TESTS ADMINISTRATEUR =====
+test.describe('Authentification — Administrateur', () => {
+
+    test('un administrateur peut se connecter avec ses identifiants', async ({ page }) => {
+        await loginAsAdmin(page);
+
+        await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
+
+        await expect(page.getByRole('button', { name: 'Nouvelle Activité' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Semaine Type' })).toBeVisible();
+
+        await expect(page.getByTitle('Utilisateurs')).toBeVisible();
+    });
+
+    test('un administrateur connecté peut se déconnecter', async ({ page }) => {
+        await loginAsAdmin(page);
+        await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
+
+        await page.getByTitle('Déconnexion').click();
+            await expect(page.locator('button[type="submit"]')).toBeVisible();
         await expect(page.locator('h2', { hasText: 'Planning' })).not.toBeVisible();
     });
 });

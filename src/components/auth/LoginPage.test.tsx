@@ -28,6 +28,15 @@ const mockBeneficiaryUser: User = {
     dob: '2005-06-15',
     address: '12 rue des Tests',
 };
+const mockAdminUser: User = {
+    id: 1,
+    email: 'admin@assoc.fr',
+    lastname: 'Admin',
+    firstname: 'Test',
+    role: 'admin',
+    dob: '1990-01-01',
+    address: '1 rue Admin',
+};
 
 describe('LoginPage', () => {
     // Avant chaque test : on réinitialise tous les mocks pour que les tests
@@ -108,3 +117,31 @@ describe('LoginPage', () => {
         expect(mockOnLogin).not.toHaveBeenCalled();
     });
 });
+   // --- TEST 4 : Connexion admin réussie ---
+    it('appelle onLogin avec les données de l\'administrateur quand il se connecte', async () => {
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: true,
+            json: async () => mockAdminUser,
+        });
+
+        const mockOnLogin = vi.fn();
+        render(<LoginPage onLogin={mockOnLogin} />);
+
+        const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+        const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+ await userEvent.clear(emailInput);
+        await userEvent.type(emailInput, 'admin@assoc.fr');
+        await userEvent.clear(passwordInput);
+        await userEvent.type(passwordInput, 'admin123');
+
+        await userEvent.click(screen.getByRole('button', { name: /se connecter/i }));
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith('/api/login', expect.objectContaining({
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: 'admin@assoc.fr', password: 'admin123' }),
+            }));
+                     expect(mockOnLogin).toHaveBeenCalledWith(mockAdminUser);
+        });
+    });
