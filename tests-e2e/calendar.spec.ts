@@ -1,23 +1,44 @@
 import { test, expect, Page } from '@playwright/test';
 
+
+
 test.describe('Calendar E2E Tests', () => {
+
     // Helper to abstract the login flow
+
     test.beforeEach(async ({ page }) => {
+
         await page.goto('/');
+
         await page.fill('input[type="email"]', 'admin@assoc.fr');
+
         await page.fill('input[type="password"]', 'admin123');
 
+
+
         await Promise.all([
+
             page.waitForURL('**/*'),
+
             page.click('button[type="submit"]')
+
         ]);
 
+
+
         // Wait for data load
+
         await page.waitForLoadState('networkidle');
 
+
+
         // Ensure we are on the calendar page
+
         await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
+
     });
+
+
 
     test.describe('1. Navigation & View Modes', () => {
         test('Week View (default) displays correctly', async ({ page }) => {
@@ -45,210 +66,501 @@ test.describe('Calendar E2E Tests', () => {
 
         test('Time Navigation works in week view', async ({ page }) => {
             const dateTextLocator = page.locator('span.px-4.font-bold');
+            await expect(dateTextLocator).toBeVisible();
+
+            // Capturer le texte initial
             const initialText = await dateTextLocator.textContent();
 
-            // Click next week (use .nth(1) or last() as first is mobile menu chevron)
-            await page.locator('button:has(svg.lucide-chevron-right)').last().click();
-            await expect(dateTextLocator).not.toHaveText(initialText || '');
+            const nextBtn = page.locator('button:has(svg.lucide-chevron-right)').last();
+            await nextBtn.waitFor({ state: 'visible' });
 
-            // Click previous week
-            await page.locator('button:has(svg.lucide-chevron-left)').last().click();
-            await expect(dateTextLocator).toHaveText(initialText || '');
+            // Naviguer suffisamment pour changer de mois (5 semaines = ~35 jours)
+            for (let i = 0; i < 5; i++) {
+                await nextBtn.click();
+                await page.waitForTimeout(150);
+            }
+
+            // Vérifier que le texte a changé
+            await expect(dateTextLocator).not.toHaveText(initialText || '', { timeout: 10000 });
+
+            const changedText = await dateTextLocator.textContent();
+
+            // Revenir 5 fois en arrière
+            const prevBtn = page.locator('button:has(svg.lucide-chevron-left)').last();
+            await prevBtn.waitFor({ state: 'visible' });
+            for (let i = 0; i < 5; i++) {
+                await prevBtn.click();
+                await page.waitForTimeout(150);
+            }
+
+            // Vérifier qu'on est revenu au texte initial
+            await expect(dateTextLocator).toHaveText(initialText || '', { timeout: 5000 });
         });
     });
+
+
+
 
     test.describe('2. Empty Slots & Quick Create', () => {
+
         // We evaluate empty slots click behavior here
+
         test('Clicking empty Aide aux devoirs slot opens modal', async ({ page }) => {
+
             // The empty slot create button (+ icon). The row class uses opacity changes on hover.
+
             const addBtn = page.locator('button.group-hover\\/slot\\:opacity-100').first();
+
             // Need to hover the slot to make the button visible usually, but let's try force click
+
             await addBtn.click({ force: true });
 
+
+
             // Should open homework form
+
             await expect(page.locator('h3', { hasText: 'Nouvelle Permanence' })).toBeVisible();
+
             await page.locator('button', { hasText: 'Annuler' }).click();
+
         });
+
+
 
         test('Trigger Semaine Type batch action', async ({ page }) => {
+
             // Intercept API call so we don't spam the DB
+
             let batchCalled = false;
+
             await page.route('/api/sessions/homework/batch', async (route) => {
+
                 batchCalled = true;
+
                 await route.fulfill({ status: 200, json: { message: 'Ok' } });
+
             });
+
+
 
             await page.getByRole('button', { name: 'Semaine Type' }).click();
+
             // Because it fetches sessions right after, we wait a bit
+
             await page.waitForLoadState('networkidle');
+
             expect(batchCalled).toBeTruthy();
+
         });
+
     });
+
+
 
     test.describe('3. Main Creation Modals (Header Buttons)', () => {
+
         test('Create Activity Flow', async ({ page }) => {
+
             let activityCreated = false;
-            await page.route('/api/activities', async (route) => {
-                activityCreated = true;
-                await route.fulfill({ status: 201, json: { id: 999 } });
+
+            let capturedBody: Record<string, any> = {};
+
+
+
+            // Mock /api/upload (image)
+
+            await page.route('/api/upload', async (route) => {
+
+                await route.fulfill({
+
+                    status: 200,
+
+                    json: { url: 'https://cdn.example.com/test.png' }
+
+                });
+
             });
+
+
+
+            await page.route('/api/activities', async (route) => {
+
+                if (route.request().method() === 'POST') {
+
+                    capturedBody = route.request().postDataJSON();
+
+                    activityCreated = true;
+
+                }
+
+                await route.fulfill({ status: 201, json: { id: 999 } });
+
+            });
+
+
 
             await page.getByRole('button', { name: 'Nouvelle Activité', exact: true }).click();
+
             await expect(page.locator('h3', { hasText: 'Nouvel Atelier' })).toBeVisible();
 
+
+
+            // Champs classiques
+
             await page.fill('input[name="title"]', 'Test E2E Activity');
+
             await page.fill('textarea[name="description"]', 'E2E Description');
+
             await page.fill('input[name="max_participants"]', '10');
+
+
+
+            // Deadline — input[type="date"] avec fill()
+
+            await page.fill('input[name="deadline"]', '2025-06-01');
+
+            await expect(page.locator('input[name="deadline"]')).toHaveValue('2025-06-01');
+
+
+
+            // Image — upload d'un fichier fictif
+
+            const fileInput = page.locator('input[type="file"]');
+
+            await fileInput.setInputFiles({
+
+                name: 'test.png',
+
+                mimeType: 'image/png',
+
+                buffer: Buffer.from('fake-image'),
+
+            });
+
+            // Vérifier que la prévisualisation apparaît
+
+            await expect(page.locator('img[alt="Preview"]')).toBeVisible({ timeout: 3000 });
+
+
+
             await Promise.all([
-                page.waitForResponse(response => response.url().includes('/api/activities') && response.request().method() === 'POST'),
+
+                page.waitForResponse(r =>
+
+                    r.url().includes('/api/activities') &&
+
+                    r.request().method() === 'POST'
+
+                ),
+
                 page.getByRole('button', { name: 'Soumettre' }).click()
+
             ]);
+
+
 
             expect(activityCreated).toBeTruthy();
+
+            expect(capturedBody.title).toBe('Test E2E Activity');
+
+            expect(capturedBody.deadline).toBe('2025-06-01');
+
+            // L'URL vient du mock /api/upload
+
+            expect(capturedBody.image_url).toBe('https://cdn.example.com/test.png');
+
+            expect(capturedBody.max_participants).toBe(10);
+
         });
+
+
 
         test('Create Room Booking Flow', async ({ page }) => {
+
             let roomBooked = false;
+
             await page.route('/api/sessions/room', async (route) => {
+
                 roomBooked = true;
+
                 await route.fulfill({ status: 201, json: { id: 888 } });
+
             });
+
+
 
             await page.getByRole('button', { name: 'Résa. Local', exact: true }).click();
+
             await expect(page.locator('h3', { hasText: 'Réservation du local' }).last()).toBeVisible();
 
+
+
             await Promise.all([
+
                 page.waitForResponse(response => response.url().includes('/api/sessions/room') && response.request().method() === 'POST'),
+
                 page.getByRole('button', { name: 'Créer' }).click()
+
             ]);
+
+
 
             expect(roomBooked).toBeTruthy();
+
         });
+
     });
+
+
 
     test.describe('4. Session Interaction (Modal Workflow)', () => {
+
         test('View Session Details and Register', async ({ page }) => {
+
             let registrationCalled = false;
+
             await page.route('/api/registrations', async (route) => {
+
                 registrationCalled = true;
+
                 if (route.request().method() === 'POST') {
+
                     await route.fulfill({ status: 201, json: { id: 777 } });
+
                 } else if (route.request().method() === 'DELETE') {
+
                     await route.fulfill({ status: 200, json: { message: 'Ok' } });
+
                 } else {
+
                     await route.continue();
+
                 }
+
             });
+
+
 
             // Click the first available session chip on the calendar
+
             const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+
             await sessionCard.click();
+
+
 
             // Wait for modal to open
+
             await expect(page.locator('h3').first()).toBeVisible();
 
+
+
             // Try to register (if button is there, otherwise unregister then register)
+
             const registerBtn = page.getByRole('button', { name: 'S\'inscrire' });
+
             const unregisterBtn = page.getByRole('button', { name: 'Se désinscrire' });
 
+
+
             if (await registerBtn.isVisible()) {
+
                 await Promise.all([
+
                     page.waitForResponse(response => response.url().includes('/api/registrations') && response.request().method() === 'POST'),
+
                     registerBtn.click()
+
                 ]);
+
                 expect(registrationCalled).toBeTruthy();
+
             } else if (await unregisterBtn.isVisible()) {
+
                 // Handle unregistration dialog
+
                 page.once('dialog', dialog => dialog.accept());
+
                 await Promise.all([
+
                     page.waitForResponse(response => response.url().includes('/api/registrations') && response.request().method() === 'DELETE'),
+
                     unregisterBtn.click()
+
                 ]);
+
                 expect(registrationCalled).toBeTruthy();
+
             }
+
         });
+
+
 
         test('Delete Single Session (Admin)', async ({ page }) => {
+
             // Mock delete API
+
             let deleteCalled = false;
+
             await page.route('**/api/sessions/*', async (route) => {
+
                 if (route.request().method() === 'DELETE') {
+
                     deleteCalled = true;
+
                     await route.fulfill({ status: 200, json: { message: 'Deleted' } });
+
                 } else {
+
                     await route.continue();
+
                 }
+
             });
+
+
 
             const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+
             await sessionCard.click();
 
+
+
             // Handle the confirmation prompt
+
             page.once('dialog', dialog => dialog.accept());
 
+
+
             await Promise.all([
+
                 page.waitForResponse(response => response.url().includes('/api/sessions/') && response.request().method() === 'DELETE'),
+
                 page.getByRole('button', { name: 'Supprimer' }).click()
+
             ]);
+
             expect(deleteCalled).toBeTruthy();
+
         });
+
     });
+
+
 
     test.describe('5. Advanced Scheduling Tools', () => {
+
         test('Multi-selection Deletion (Sél. Multiple)', async ({ page }) => {
+
             let deleteCalls = 0;
+
             await page.route('**/api/sessions/*', async (route) => {
+
                 if (route.request().method() === 'DELETE') {
+
                     deleteCalls++;
+
                     await route.fulfill({ status: 200, json: { message: 'Deleted' } });
+
                 } else {
+
                     await route.continue();
+
                 }
+
             });
+
+
 
             // Activate Multiple Selection mode
+
             await page.getByRole('button', { name: 'Sél. Multiple' }).click();
 
+
+
             // Select the first two sessions
+
             const sessions = page.locator('div.cursor-pointer.relative.group.overflow-hidden');
+
             if (await sessions.count() >= 2) {
+
                 await sessions.nth(0).click();
+
                 await sessions.nth(1).click();
 
+
+
                 page.once('dialog', dialog => dialog.accept());
+
                 await page.getByRole('button', { name: /Supprimer \(/ }).click();
 
+
+
                 // Wait for network requests to settle
+
                 await page.waitForLoadState('networkidle');
+
                 expect(deleteCalls).toBe(2);
+
             }
+
         });
+
+
 
         test('Drag and Drop Session', async ({ page }) => {
+
             let patchCalled = false;
+
             await page.route('**/api/sessions/*', async (route) => {
+
                 if (route.request().method() === 'PATCH') {
+
                     patchCalled = true;
+
                     await route.fulfill({ status: 200, json: { message: 'Moved' } });
+
                 } else {
+
                     await route.continue();
+
                 }
+
             });
 
+
+
             // We need a draggable session and a drop target
+
             const sourceSession = page.locator('div[draggable="true"]').first();
+
             // Drop target (an empty slot). We find all slots
+
             const dropTargets = page.locator('.group\\/slot');
 
+
+
             if (await sourceSession.isVisible() && await dropTargets.count() > 1) {
+
                 // Drag the first session to the second slot
+
                 await sourceSession.dragTo(dropTargets.nth(1));
 
+
+
                 await page.waitForLoadState('networkidle');
+
                 // The patch might or might not have triggered depending on exact drag constraints
+
                 // (e.g. moving activity to activity row), so we just assert the test didn't crash.
+
                 // expect(patchCalled).toBeDefined(); // Optional validation if stable
+
             }
+
         });
+
     });
+
 });
