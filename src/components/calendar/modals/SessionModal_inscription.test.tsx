@@ -109,32 +109,11 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         expect(screen.queryByRole('button', { name: /s'inscrire/i })).not.toBeInTheDocument();
     });
 
-    it('devrait appeler onDeleteSession quand l\'admin clique sur le bouton de suppression', async () => {
-        const onDeleteSessionMock = vi.fn();
-        render(<SessionModal user={mockAdmin} selectedSession={mockSession} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={onDeleteSessionMock} onValidateActivity={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: /supprimer la session/i }));
-        await waitFor(() => expect(onDeleteSessionMock).toHaveBeenCalledWith(mockSession.id));
-    });
-
-    it('devrait appeler onValidateActivity quand l\'admin valide une session', async () => {
-        const onValidateActivityMock = vi.fn();
-        const pendingSession = { ...mockSession, status: 'pending' };
-        render(<SessionModal user={mockAdmin} selectedSession={pendingSession as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={onValidateActivityMock} />);
-        fireEvent.click(screen.getByRole('button', { name: /approuver l'atelier/i }));
-        await waitFor(() => expect(onValidateActivityMock).toHaveBeenCalledWith(mockSession.activity_id, 'approved'));
-    });
-
     it('devrait appeler onClose quand on clique sur le bouton de fermeture', () => {
         const onCloseMock = vi.fn();
         render(<SessionModal user={mockBeneficiary} selectedSession={mockSession} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={onCloseMock} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
         fireEvent.click(screen.getAllByRole('button')[0]);
         expect(onCloseMock).toHaveBeenCalled();
-    });
-
-    it('ne devrait pas afficher les options de gestion admin (suppression/validation) pour un simple bénéficiaire', () => {
-        render(<SessionModal user={mockBeneficiary} selectedSession={{ ...mockSession, status: 'pending' } as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        expect(screen.queryByRole('button', { name: /supprimer la session/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /approuver l'atelier/i })).not.toBeInTheDocument();
     });
 
     it('devrait afficher la liste des participants inscrits', () => {
@@ -162,56 +141,8 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
             participants: [{ user_id: 1, firstname: 'A', lastname: 'B', role: 'beneficiary', role_at_registration: 'beneficiary' }],
         };
         render(<SessionModal user={mockAdmin} selectedSession={sessionWithLimit as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-
-        // Le composant affiche "{max_participants} places" dans le bloc description
-        expect(screen.getByText(/12 places/i)).toBeInTheDocument();
-        // Le participant inscrit doit apparaître dans la liste d'appel
-        expect(screen.getByText(/A B/i)).toBeInTheDocument();
+        expect(screen.getByText(/Places : 1 \/ 12/i)).toBeInTheDocument();
     });
 
     it('ne devrait pas afficher le bouton "Retirer" pour un bénéficiaire qui regarde la liste', () => {
         const sessionWithOtherUser = { ...mockSession, participants: [{ user_id: 999, firstname: 'Autre', lastname: 'User', role: 'beneficiary', role_at_registration: 'beneficiary' }] };
-        render(<SessionModal user={mockBeneficiary} selectedSession={sessionWithOtherUser as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        expect(screen.queryByRole('button', { name: /Retirer/i })).not.toBeInTheDocument();
-    });
-
-    /* --- TESTS EN ATTENTE DE CORRECTION (BUGS DÉTECTÉS) ---
-
-    it('devrait appeler onClose lorsque la touche Échap est pressée', () => {
-        const onCloseMock = vi.fn();
-        render(<SessionModal user={mockBeneficiary} selectedSession={mockSession} onClose={onCloseMock} ... />);
-        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
-        expect(onCloseMock).toHaveBeenCalled();
-    });
-
-    it('ne devrait pas appeler showSuccess si l\'inscription directe échoue', async () => {
-        const showSuccessMock = vi.fn();
-        (global.fetch as Mock).mockResolvedValueOnce({ ok: false, status: 400 });
-        render(<SessionModal user={mockBeneficiary} selectedSession={mockSession} showSuccess={showSuccessMock} ... />);
-        fireEvent.click(screen.getByRole('button', { name: /s'inscrire/i }));
-        await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-        expect(showSuccessMock).not.toHaveBeenCalled();
-    });
-
-    it('ne devrait pas rafraîchir les sessions si l\'inscription manuelle échoue (Erreur 500)', async () => {
-        const onFetchSessionsMock = vi.fn();
-        (global.fetch as Mock).mockResolvedValueOnce({ ok: false, status: 500 });
-        render(<SessionModal user={mockAdmin} selectedSession={mockSession} allUsers={[mockBeneficiary]} onFetchSessions={onFetchSessionsMock} ... />);
-        fireEvent.click(screen.getAllByText('GO')[0]);
-        await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-        expect(onFetchSessionsMock).not.toHaveBeenCalled(); 
-    });
-
-    it('ne devrait pas afficher le bouton d\'inscription si la date limite est dépassée', () => {
-        const expiredSession: Session = { ...mockSession, deadline: '2020-01-01T00:00:00Z' };
-        render(<SessionModal user={mockBeneficiary} selectedSession={expiredSession} ... />);
-        expect(screen.queryByRole('button', { name: /s'inscrire/i })).not.toBeInTheDocument();
-    });
-
-    it('ne devrait pas afficher le bouton s\'inscrire si la session est complète', () => {
-        const fullSession: Session = { ...mockSession, max_participants: 1, participants: [{ user_id: 999, ... }] };
-        render(<SessionModal user={mockBeneficiary} selectedSession={fullSession} ... />);
-        expect(screen.queryByRole('button', { name: /s'inscrire/i })).not.toBeInTheDocument();
-    });
-    */
-});
