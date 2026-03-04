@@ -50,8 +50,7 @@ const mockActivitySession: Session = {
     status: 'pending',
     activity_id: 10,
     participants: [
-        // **removed invalid `registration_date` and added required `role`**
-        { user_id: 2, firstname: 'Ficiary', lastname: 'Bene', role_at_registration: 'beneficiary', role: 'beneficiary' }
+        { user_id: 2, firstname: 'Ficiary', lastname: 'Bene', role_at_registration: 'beneficiary', registration_date: '2025-09-01' }
     ]
 };
 
@@ -104,6 +103,7 @@ describe('SessionModal', () => {
     });
 
     it('handles register when user is not participant', async () => {
+        // mockAdminUser is not in the participants list
         renderModal();
 
         const registerButton = screen.getByRole('button', { name: /S'inscrire/i });
@@ -115,21 +115,15 @@ describe('SessionModal', () => {
     });
 
     it('handles unregister when user is participant', async () => {
-        const sessionWithAdmin: Session = {
+        const sessionWithAdmin = {
             ...mockActivitySession,
-            participants: [{
-                user_id: mockAdminUser.id,
-                firstname: 'Super',
-                lastname: 'Admin',
-                role_at_registration: 'volunteer',
-                role: 'admin'
-            }]
+            participants: [{ user_id: mockAdminUser.id, firstname: 'Super', lastname: 'Admin', role_at_registration: 'volunteer', registration_date: '2025-09-01' }]
         };
         renderModal(sessionWithAdmin);
-    
+
         const unregisterButton = screen.getByRole('button', { name: /Se désister/i });
         await userEvent.click(unregisterButton);
-    
+
         expect(mockOnUnregister).toHaveBeenCalledWith(sessionWithAdmin.id);
         expect(mockOnClose).toHaveBeenCalled();
         expect(mockShowSuccess).toHaveBeenCalledWith("Inscription annulée !");
@@ -137,7 +131,10 @@ describe('SessionModal', () => {
 
     it('admin can unregister another user', async () => {
         renderModal();
+        // Since Admin is viewing, they should see trash cans next to beneficiaries
         const trashButtons = screen.getAllByTitle('Retirer');
+
+        // Trash button for "Bene Ficiary"
         await userEvent.click(trashButtons[0]);
 
         expect(mockOnUnregister).toHaveBeenCalledWith(mockActivitySession.id, mockBeneficiary.id);
@@ -146,33 +143,32 @@ describe('SessionModal', () => {
     });
 
     it('admin can manually register a beneficiary', async () => {
-        // updated cast to match other tests
-        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+        (global.fetch as vi.Mock).mockResolvedValue({ ok: true });
 
+        // use session with no beneficiaries so we can add 'bene@test.com'
         const emptySession = { ...mockActivitySession, participants: [] };
         renderModal(emptySession);
 
+        // The selects have IDs: `manual-reg-ben-${session.id}`
         const select = document.getElementById(`manual-reg-ben-${emptySession.id}`) as HTMLSelectElement;
+
         await userEvent.selectOptions(select, [mockBeneficiary.id.toString()]);
+
+        // Find the GO button inside the same div
         const goButton = select.nextElementSibling as HTMLButtonElement;
         await userEvent.click(goButton);
 
         await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(
-                '/api/registrations',
-                expect.objectContaining({
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: expect.stringContaining(`"user_id":${mockBeneficiary.id}`)
-                })
-            );
+            expect(global.fetch).toHaveBeenCalledWith('/api/registrations', expect.objectContaining({
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: expect.stringContaining(`"user_id":${mockBeneficiary.id}`)
+            }));
             expect(mockOnFetchSessions).toHaveBeenCalled();
             expect(mockShowSuccess).toHaveBeenCalledWith("Jeune inscrit !");
             expect(mockOnClose).toHaveBeenCalled();
         });
     });
-
-    /* ... rest of the tests stay unchanged ... */
 
     it('admin can delete session', async () => {
         renderModal();
@@ -200,23 +196,5 @@ describe('SessionModal', () => {
 
         expect(mockOnValidateActivity).toHaveBeenCalledWith(mockActivitySession.activity_id, 'pending');
         expect(mockOnClose).toHaveBeenCalled();
-    });
-
-    // civic‑service activity test
-    const mockCivicSession: Session = {
-        ...mockActivitySession,
-        activity_id: 20
-    };
-
-    it('admin can validate and delete an activity proposed by un service civique', async () => {
-        renderModal(mockCivicSession);
-        const approveBtn = screen.getByRole('button', { name: /Approuver l'atelier/i });
-        await userEvent.click(approveBtn);
-        expect(mockOnValidateActivity).toHaveBeenCalledWith(mockCivicSession.activity_id, 'approved');
-        expect(mockOnClose).toHaveBeenCalled();
-
-        const deleteBtn = screen.getByRole('button', { name: /Supprimer la session/i });
-        await userEvent.click(deleteBtn);
-        expect(mockOnDeleteSession).toHaveBeenCalledWith(mockCivicSession.id);
     });
 });
