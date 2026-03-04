@@ -71,30 +71,27 @@ test.describe('Calendar E2E Tests', () => {
             // Capturer le texte initial
             const initialText = await dateTextLocator.textContent();
 
-            const nextBtn = page.locator('button:has(svg.lucide-chevron-right)').last();
-            await nextBtn.waitFor({ state: 'visible' });
-
-            // Naviguer suffisamment pour changer de mois (5 semaines = ~35 jours)
+            let dateChanged = false;
             for (let i = 0; i < 5; i++) {
-                await nextBtn.click();
-                await page.waitForTimeout(150);
+                await page.locator('button:has(svg.lucide-chevron-right)').last().click();
+                await page.waitForTimeout(100);
+                const currentText = await dateTextLocator.textContent();
+                if (currentText !== initialText) {
+                    dateChanged = true;
+                    break;
+                }
             }
+            expect(dateChanged).toBe(true);
 
-            // Vérifier que le texte a changé
-            await expect(dateTextLocator).not.toHaveText(initialText || '', { timeout: 10000 });
-
-            const changedText = await dateTextLocator.textContent();
-
-            // Revenir 5 fois en arrière
-            const prevBtn = page.locator('button:has(svg.lucide-chevron-left)').last();
-            await prevBtn.waitFor({ state: 'visible' });
             for (let i = 0; i < 5; i++) {
-                await prevBtn.click();
-                await page.waitForTimeout(150);
+                await page.locator('button:has(svg.lucide-chevron-left)').last().click();
+                await page.waitForTimeout(100);
+                const currentText = await dateTextLocator.textContent();
+                if (currentText === initialText) {
+                    break;
+                }
             }
-
-            // Vérifier qu'on est revenu au texte initial
-            await expect(dateTextLocator).toHaveText(initialText || '', { timeout: 5000 });
+            await expect(dateTextLocator).toHaveText(initialText || '');
         });
     });
 

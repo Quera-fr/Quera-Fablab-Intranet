@@ -30,6 +30,7 @@ export interface Participant {
   role: Role;
   dob?: string;
   address?: string;
+  
 }
 
 export interface Session {
