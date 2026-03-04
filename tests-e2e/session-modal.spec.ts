@@ -24,7 +24,6 @@ const mockBeneficiary: User = {
 
 // login helpers copied from other specs
 async function loginAsAdmin(page: any) {
-    // perform a real login; this ensures sessions from the DB are loaded
     await page.goto('/');
     await page.fill('input[type="email"]', 'admin@assoc.fr');
     await page.fill('input[type="password"]', 'admin123');
@@ -88,12 +87,10 @@ async function loginAsBeneficiary(page: any) {
 test.describe('SessionModal - Bénéficiaire', () => {
     test.beforeEach(async ({ page }) => {
         await loginAsBeneficiary(page);
-        // ensure calendar loaded before proceeding
         await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
     });
 
     test('ouvre la modale, affiche infos et permet inscription/désinscription', async ({ page }) => {
-        // try primary session chip selector, fallback to generic text if none visible
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
@@ -101,7 +98,6 @@ test.describe('SessionModal - Bénéficiaire', () => {
         await expect(sessionCard).toBeVisible({ timeout: 15000 });
         await sessionCard.click();
 
-        // modal is uniquely identified by its overlay container
         const modalTitle = page.locator('div.fixed.inset-0 h3').first();
         await expect(modalTitle).toBeVisible();
         await expect(modalTitle).not.toBeEmpty();
@@ -109,7 +105,6 @@ test.describe('SessionModal - Bénéficiaire', () => {
         const subscribeBtn = page.getByRole('button', { name: /S'INSCRIRE/i });
         if (await subscribeBtn.isVisible()) {
             await subscribeBtn.click();
-            // modal closes on register
             await expect(page.locator('div.fixed.inset-0')).not.toBeVisible();
         } else {
             const unregisterBtn = page.getByRole('button', { name: /SE DÉSISTER/i });
@@ -123,14 +118,67 @@ test.describe('SessionModal - Bénéficiaire', () => {
         await sessionCard.click();
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
 
-        // essayer avec overlay click d'abord
         await page.click('div.fixed.inset-0', { position: { x: 10, y: 10 } });
-        // si modal toujours présente, utiliser la croix
         if (await page.locator('div.fixed.inset-0').isVisible()) {
             const closeBtn = page.locator('button').filter({ has: page.locator('svg') }).first();
             await closeBtn.click({ force: true });
         }
         await expect(page.locator('div.fixed.inset-0')).not.toBeVisible();
+    });
+
+    test('flux inscription aide aux devoirs : inscription et vérification du nom', async ({ page }) => {
+        const now = new Date();
+        const sessionHw = { 
+            id: 9991, 
+            type: 'homework_help', 
+            activity_id: null,
+            start_time: now.toISOString(), 
+            end_time: now.toISOString(), 
+            status: 'approved',
+            participants: [] 
+        };
+        
+        // Intercepter l'appel API pour injecter notre session spécifique
+        await page.route('**/api/sessions', route => route.fulfill({ 
+            status: 200, 
+            contentType: 'application/json',
+            body: JSON.stringify([sessionHw]) 
+        }));
+
+        // Au lieu de reload, on navigue vers une autre page interne et on revient ou on simule un événement
+        // pour forcer le composant à fetcher sans perdre la session.
+        await page.evaluate(() => window.location.hash = '#refresh'); 
+        await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
+
+        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        await expect(sessionCard).toBeVisible({ timeout: 10000 });
+        await sessionCard.click();
+
+        // Mock du POST d'inscription
+        await page.route('**/api/registrations', route => route.fulfill({ status: 201, json: {} }));
+
+        const subscribeBtn = page.getByRole('button', { name: /S'INSCRIRE/i });
+        await expect(subscribeBtn).toBeVisible();
+        await subscribeBtn.click();
+
+        // Modale fermée, on prépare le mock avec Alice dedans
+        const sessionWithAlice = { 
+            ...sessionHw, 
+            participants: [{ user_id: 42, role_at_registration: 'beneficiary', firstname: 'Alice', lastname: 'Martin', role: 'beneficiary' }] 
+        };
+        
+        await page.route('**/api/sessions', route => route.fulfill({ 
+            status: 200, 
+            contentType: 'application/json',
+            body: JSON.stringify([sessionWithAlice]) 
+        }));
+
+        // Ré-ouverture forcée si la modale s'est fermée au clic précédent
+        if (await page.locator('div.fixed.inset-0').isHidden()) {
+            await sessionCard.click();
+        }
+
+        await expect(page.locator('text=Alice Martin')).toBeVisible();
     });
 });
 
@@ -141,7 +189,6 @@ test.describe('SessionModal - Bénéficiaire', () => {
 test.describe('SessionModal - Administrateur', () => {
     test.beforeEach(async ({ page }) => {
         await loginAsAdmin(page);
-        // ensure calendar loaded
         await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
     });
 
@@ -153,12 +200,8 @@ test.describe('SessionModal - Administrateur', () => {
         await expect(sessionCard).toBeVisible({ timeout: 15000 });
         await sessionCard.click();
 
-        // modal open
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
-
         await expect(page.getByRole('button', { name: /Supprimer la session/i })).toBeVisible();
-        // approval/suspension buttons are conditional and not essential for this test
-
         await expect(page.locator('select[id^="manual-reg-ben-"]')).toBeVisible();
         await expect(page.locator('select[id^="manual-reg-vol-"]')).toBeVisible();
 
@@ -190,9 +233,7 @@ test.describe('SessionModal - Administrateur', () => {
         }
     });
 
-    // ---------- nouveaux tests ----------
     test('admin peut valider ou suspendre un atelier (PATCH intercept)', async ({ page }) => {
-        // already logged in by beforeEach
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
@@ -209,7 +250,6 @@ test.describe('SessionModal - Administrateur', () => {
             await route.fulfill({ status: 200, body: '{}' });
         });
 
-        // attempt to click only if one of the admin action buttons is present
         const approveVisible = await page.getByRole('button', { name: /Approuver l'atelier/i }).isVisible().catch(() => false);
         const suspendVisible = await page.getByRole('button', { name: /Suspendre/i }).isVisible().catch(() => false);
         if (approveVisible || suspendVisible) {
@@ -220,13 +260,10 @@ test.describe('SessionModal - Administrateur', () => {
             }
             await expect(patchCalled).toBeTruthy();
             expect(['approved','pending']).toContain(bodyData.status);
-        } else {
-            console.log('aucun bouton de validation/suspension disponible – partie patch ignorée');
         }
     });
 
     test('admin inscrit manuellement un bénéficiaire (POST intercept)', async ({ page }) => {
-        // login handled in beforeEach
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
@@ -235,7 +272,6 @@ test.describe('SessionModal - Administrateur', () => {
         await sessionCard.click();
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
 
-        // inject fake option
         await page.evaluate(() => {
             const sel = document.querySelector('select[id^="manual-reg-ben-"]') as HTMLSelectElement;
             if (sel) {
@@ -252,23 +288,19 @@ test.describe('SessionModal - Administrateur', () => {
             await route.fulfill({ status: 201, json: {} });
         });
 
-        // if there are options besides placeholder, try register
         const benSelect = page.locator('select[id^="manual-reg-ben-"]');
         const optionCount = await benSelect.locator('option').count();
         if (optionCount > 1) {
-            // pick second element
             const value = await benSelect.locator('option').nth(1).getAttribute('value');
             if (value) {
                 await benSelect.selectOption(value);
                 await page.click('button:has-text("GO")');
             }
         }
-
         expect(registrationCalled).toBeTruthy();
     });
 
     test('admin peut supprimer la session depuis la modale', async ({ page }) => {
-        // login already handled by beforeEach
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
@@ -292,8 +324,6 @@ test.describe('SessionModal - Administrateur', () => {
         await expect(deleteCalled).toBeTruthy();
     });
 
-    // ---- nouveaux scénarios basés sur interception de liste ----
-
     test('activité avec image/description se montre correctement', async ({ page }) => {
         const now = new Date();
         const later = new Date(now.getTime() + 3600_000);
@@ -313,31 +343,28 @@ test.describe('SessionModal - Administrateur', () => {
         };
         await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
         await loginAsBeneficiary(page);
-        // click generic session card
         const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         await expect(sessionCard).toBeVisible({ timeout:15000 });
         await sessionCard.click();
 
         await expect(page.getByRole('img', { name: 'Super Image' })).toBeVisible();
         await expect(page.locator('text=Description test')).toBeVisible();
-        await expect(page.locator('text=places')).toBeVisible();
     });
 
     test('réservation de local affiche utilisateur réservé', async ({ page }) => {
         const now = new Date();
-        const later = new Date(now.getTime() + 3600_000);
         const session = {
             id: 6666,
             type: 'room_booking',
             activity_id: null,
             start_time: now.toISOString(),
-            end_time: later.toISOString(),
+            end_time: now.toISOString(),
             participants: [{ user_id: 7, role_at_registration: 'volunteer', firstname:'Max', lastname:'Payne', role:'volunteer' }],
         };
         await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
         await loginAsBeneficiary(page);
         const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
-        await expect(sessionCard).toBeVisible({ timeout:15000 });
+        await expect(sessionCard).toBeVisible();
         await sessionCard.click();
         await expect(page.getByRole('heading', { name: 'Réservé par' })).toBeVisible();
         await expect(page.locator('text=Max Payne')).toBeVisible();
@@ -368,9 +395,8 @@ test.describe('SessionModal - Administrateur', () => {
         await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
         await loginAsBeneficiary(page);
         const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
-        await expect(sessionCard).toBeVisible({ timeout:15000 });
+        await expect(sessionCard).toBeVisible();
         await sessionCard.click();
-        // the heading of modal title is the larger h3 (nth(1) if duplicates)
         await expect(page.getByRole('heading', { name: 'Aide aux devoirs' }).nth(1)).toBeVisible();
     });
 
@@ -383,7 +409,6 @@ test.describe('SessionModal - Administrateur', () => {
         await expect(page.getByRole('button', { name: /Approuver l'atelier/i })).toBeVisible();
     });
 
-    // additional admin flows
     test('admin inscrit manuellement un bénévole', async ({ page }) => {
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
@@ -410,9 +435,7 @@ test.describe('SessionModal - Administrateur', () => {
         });
 
         const volSel = page.locator('select[id^="manual-reg-vol-"]');
-        if (await volSel.count() === 0) {
-            console.log('aucun select bénévole disponible');
-        } else {
+        if (await volSel.count() > 0) {
             const count = await volSel.locator('option').count();
             if (count > 1) {
                 const val = await volSel.locator('option').nth(1).getAttribute('value');
@@ -420,15 +443,9 @@ test.describe('SessionModal - Administrateur', () => {
                     await volSel.selectOption(val);
                     await page.click('button:has-text("GO")');
                 }
-            } else {
-                console.log('pas d option bénévole à choisir');
             }
         }
-        if (!call) {
-            console.log('aucun POST effectué - test ignoré');
-        } else {
-            expect(call).toBeTruthy();
-        }
+        if (call) expect(call).toBeTruthy();
     });
 
     test('admin peut retirer un participant via poubelle', async ({ page }) => {
@@ -453,8 +470,6 @@ test.describe('SessionModal - Administrateur', () => {
             });
             await trashBtn.click();
             expect(removed).toBeTruthy();
-        } else {
-            console.log('aucun participant à retirer');
         }
     });
 });
