@@ -37,6 +37,15 @@ const mockAdminUser: User = {
     dob: '1990-01-01',
     address: '1 rue Admin',
 };
+const mockServiceCiviqueUser: User = {
+    id: 10,
+    email: 'civic_service@assoc.fr',
+    lastname: 'Dupont',
+    firstname: 'Jean',
+    role: 'civic_service',
+    dob: '2000-01-01',
+    address: '1 Rue du Service',
+};
 
 describe('LoginPage', () => {
     // Avant chaque test : on réinitialise tous les mocks pour que les tests
@@ -116,8 +125,7 @@ describe('LoginPage', () => {
         // onLogin ne doit PAS avoir été appelé — l'utilisateur ne doit pas être connecté
         expect(mockOnLogin).not.toHaveBeenCalled();
     });
-});
-   // --- TEST 4 : Connexion admin réussie ---
+    // --- TEST 4 : Connexion admin réussie ---
     it('appelle onLogin avec les données de l\'administrateur quand il se connecte', async () => {
         (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
             ok: true,
@@ -145,3 +153,33 @@ describe('LoginPage', () => {
                      expect(mockOnLogin).toHaveBeenCalledWith(mockAdminUser);
         });
     });
+    // --- TEST 5 : Connexion service civique réussie ---
+    it('appelle onLogin avec les données du service civique quand il se connecte', async () => {
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: true,
+            json: async () => mockServiceCiviqueUser,
+        });
+
+        const mockOnLogin = vi.fn();
+        render(<LoginPage onLogin={mockOnLogin} />);
+
+        const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+        const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+
+        await userEvent.clear(emailInput);
+        await userEvent.type(emailInput, 'civic_service@assoc.fr');
+        await userEvent.clear(passwordInput);
+        await userEvent.type(passwordInput, 'civicpass');
+
+        await userEvent.click(screen.getByRole('button', { name: /se connecter/i }));
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith('/api/login', expect.objectContaining({
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: 'civic_service@assoc.fr', password: 'civicpass' }),
+            }));
+            expect(mockOnLogin).toHaveBeenCalledWith(mockServiceCiviqueUser);
+        });
+    });
+});

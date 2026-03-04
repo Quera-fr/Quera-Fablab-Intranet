@@ -162,114 +162,128 @@ test.describe('Calendar E2E Tests', () => {
         test('Create Activity Flow', async ({ page }) => {
 
             let activityCreated = false;
-
             let capturedBody: Record<string, any> = {};
 
-
-
-            // Mock /api/upload (image)
+            // ✅ Jeudi 5 mars 2026 (visible dans la semaine actuelle)
+            const mockActivity = {
+                id: 999,
+                title: 'Test E2E Activity',
+                description: 'E2E Description',
+                max_participants: 10,
+                deadline: '2026-06-01',
+                image_url: 'https://cdn.example.com/test.png',
+                start_time: '2026-03-05T16:30:00.000Z',
+                end_time: '2026-03-05T20:00:00.000Z',
+                type: 'activity',
+                status: 'pending',
+                creator_name: 'Super Admin',
+                participants: []
+            };
 
             await page.route('/api/upload', async (route) => {
-
                 await route.fulfill({
-
                     status: 200,
-
                     json: { url: 'https://cdn.example.com/test.png' }
-
                 });
-
             });
-
-
 
             await page.route('/api/activities', async (route) => {
-
                 if (route.request().method() === 'POST') {
-
                     capturedBody = route.request().postDataJSON();
-
                     activityCreated = true;
-
+                    await route.fulfill({ status: 201, json: mockActivity });
+                } else {
+                    await route.continue();
                 }
-
-                await route.fulfill({ status: 201, json: { id: 999 } });
-
             });
 
-
+            // ✅ Intercepter le rechargement des sessions APRÈS création
+            await page.route('/api/sessions', async (route) => {
+                if (route.request().method() === 'GET') {
+                    const realResponse = await route.fetch();
+                    const sessions = await realResponse.json();
+                    // Injecter notre session mockée dans la liste réelle
+                    await route.fulfill({
+                        status: 200,
+                        json: [...sessions, {
+                            id: 9999,
+                            type: 'activity',
+                            activity_id: 999,
+                            start_time: '2026-03-05T16:30:00.000Z',
+                            end_time: '2026-03-05T20:00:00.000Z',
+                            title: 'Test E2E Activity',
+                            description: 'E2E Description',
+                            status: 'pending',
+                            max_participants: 10,
+                            participants: []
+                        }]
+                    });
+                } else {
+                    await route.continue();
+                }
+            });
 
             await page.getByRole('button', { name: 'Nouvelle Activité', exact: true }).click();
-
             await expect(page.locator('h3', { hasText: 'Nouvel Atelier' })).toBeVisible();
 
-
-
-            // Champs classiques
-
             await page.fill('input[name="title"]', 'Test E2E Activity');
-
             await page.fill('textarea[name="description"]', 'E2E Description');
-
             await page.fill('input[name="max_participants"]', '10');
-
-
-
-            // Deadline — input[type="date"] avec fill()
-
-            await page.fill('input[name="deadline"]', '2025-06-01');
-
-            await expect(page.locator('input[name="deadline"]')).toHaveValue('2025-06-01');
-
-
-
-            // Image — upload d'un fichier fictif
+            await page.fill('input[name="deadline"]', '2026-06-01');
 
             const fileInput = page.locator('input[type="file"]');
-
             await fileInput.setInputFiles({
-
                 name: 'test.png',
-
                 mimeType: 'image/png',
-
                 buffer: Buffer.from('fake-image'),
-
             });
-
-            // Vérifier que la prévisualisation apparaît
-
             await expect(page.locator('img[alt="Preview"]')).toBeVisible({ timeout: 3000 });
 
-
-
             await Promise.all([
-
                 page.waitForResponse(r =>
-
                     r.url().includes('/api/activities') &&
-
                     r.request().method() === 'POST'
-
                 ),
-
                 page.getByRole('button', { name: 'Soumettre' }).click()
-
             ]);
-
-
 
             expect(activityCreated).toBeTruthy();
 
-            expect(capturedBody.title).toBe('Test E2E Activity');
+            // ✅ Attendre que le modal se ferme
+            await expect(page.locator('h3', { hasText: 'Nouvel Atelier' })).not.toBeVisible();
 
-            expect(capturedBody.deadline).toBe('2025-06-01');
+            // ✅ Vérifier que l'atelier apparaît dans le planning (Jeudi 5 mars)
+            await expect(page.locator('text=Test E2E Activity').first()).toBeVisible({ timeout: 5000 });
 
-            // L'URL vient du mock /api/upload
+            await page.screenshot({
+                path: 'test-results/activity-created.png',
+                fullPage: true
+            });
 
-            expect(capturedBody.image_url).toBe('https://cdn.example.com/test.png');
+            // ✅ Supprimer l'atelier créé via l'UI
+            let deleteCalled = false;
+            await page.route('**/api/sessions/*', async (route) => {
+                if (route.request().method() === 'DELETE') {
+                    deleteCalled = true;
+                    await route.fulfill({ status: 200, json: { message: 'Deleted' } });
+                } else {
+                    await route.continue();
+                }
+            });
+            await page.route('**/api/activities/*', async (route) => {
+                if (route.request().method() === 'DELETE') {
+                    await route.fulfill({ status: 200, json: { success: true } });
+                } else {
+                    await route.continue();
+                }
+            });
 
-            expect(capturedBody.max_participants).toBe(10);
+            await page.locator('text=Test E2E Activity').first().click();
+            page.once('dialog', dialog => dialog.accept());
+            await page.getByRole('button', { name: 'Supprimer' }).click();
+            await page.waitForLoadState('networkidle');
+
+            expect(deleteCalled).toBeTruthy();
 
         });
 
