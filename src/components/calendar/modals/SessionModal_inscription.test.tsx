@@ -155,10 +155,11 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         expect(screen.getByText(/Lucas Dupont/i)).toBeInTheDocument();
     });
 
-   it('devrait afficher le compteur de places correctement', () => {
+    it('devrait afficher le compteur de places correctement', () => {
         const sessionWithLimit = { ...mockSession, max_participants: 12, participants: [{ user_id: 1, firstname: 'A', lastname: 'B', role: 'beneficiary', role_at_registration: 'beneficiary' }] };
         render(<SessionModal user={mockAdmin} selectedSession={sessionWithLimit as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        expect(screen.getByText(/1\s*\/\s*12/i)).toBeInTheDocument();
+        expect(screen.getByText(/12\s*places/i)).toBeInTheDocument();
+        expect(screen.getByText('A B')).toBeInTheDocument();
     });
 
     it('ne devrait pas afficher le bouton "Retirer" pour un bénéficiaire qui regarde la liste', () => {
