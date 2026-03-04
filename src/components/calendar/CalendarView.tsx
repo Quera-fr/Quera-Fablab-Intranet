@@ -243,6 +243,20 @@ const CalendarView = ({ user }: CalendarViewProps) => {
 
     const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
+    const getActivityRowStyling = () => {
+        const activitiesInWeek = sessions.filter(s => {
+            const sDate = new Date(s.start_time);
+            return s.type === 'activity' && daysInWeek.some(d => d.toDateString() === sDate.toDateString());
+        });
+        const hasAnyPending = activitiesInWeek.some(s => s.status !== 'approved');
+        
+        if (hasAnyPending) {
+            return 'bg-zinc-50/50 dark:bg-zinc-800/10 border-zinc-100 dark:border-zinc-700/30';
+        }
+        return 'bg-green-50/50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30';
+    };
+    
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -363,14 +377,14 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                                     <button
                                         type="button"
                                         onClick={() => openFormForRow(rowType)}
-                                        className={`w-full text-left px-4 py-2 rounded-t-xl border-b-0 ${ROW_STYLES[rowType]} border flex items-center justify-between cursor-pointer hover:brightness-95 transition`}
+                                        className={`w-full text-left px-4 py-2 rounded-t-xl border-b-0 ${rowType === 'activity' ? getActivityRowStyling() : ROW_STYLES[rowType]} border flex items-center justify-between cursor-pointer hover:brightness-95 transition`}
                                     >
                                         <h3 className="text-xs font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-300">
                                             {ROW_LABELS[rowType]}
                                         </h3>
                                     </button>
                                     <div
-                                        className={`grid gap-2 rounded-b-xl border border-t-0 p-2 grid-cols-7 w-full ${ROW_STYLES[rowType]}`}
+                                        className={`grid gap-2 rounded-b-xl border border-t-0 p-2 grid-cols-7 w-full ${rowType === 'activity' ? getActivityRowStyling() : ROW_STYLES[rowType]}`}
                                         style={{ minHeight: '140px' }}
                                     >
                                         {daysInWeek.map((day, i) => {
@@ -472,11 +486,11 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                                                                     </div>
                                                                 )}
                                                                 <div className="mt-2 flex flex-wrap gap-1">
-                                                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+                                                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
                                                                         <Users size={8} /> {s.type === 'room_booking' ? `Réservé par ${s.participants[0]?.firstname || '?'}` : `Encadrants ${volunteerCount}/3`}
                                                                     </span>
                                                                     {s.type === 'homework_help' && (
-                                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+                                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
                                                                             <Users size={8} /> Jeunes {beneficiaryCount}/15
                                                                         </span>
                                                                     )}
@@ -517,7 +531,7 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                                         <p className={`text-xs font-black mb-2 ${isToday ? 'text-black dark:text-white' : ''}`}>{day.getDate()}</p>
                                         <div className="flex flex-col gap-1">
                                             {daySessions.slice(0, 3).map(s => (
-                                                <div key={s.id} onClick={() => setSelectedSession(s)} className={`text-[9px] font-bold p-1 rounded cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${s.type === 'homework_help' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200' : s.type === 'room_booking' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' : s.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' : 'border border-dashed border-zinc-300 text-zinc-400'}`}>
+                                                <div key={s.id} onClick={() => setSelectedSession(s)} className={`text-[9px] font-bold p-1 rounded cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${s.type === 'homework_help' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200' : s.type === 'room_booking' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' : s.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-400 border border-zinc-300'}`}>
                                                     {s.type === 'homework_help' ? 'Aide devoirs' : s.type === 'room_booking' ? 'Résa. local' : (s.title ?? '')}
                                                 </div>
                                             ))}
