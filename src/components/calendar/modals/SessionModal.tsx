@@ -256,7 +256,6 @@ const SessionModal = ({
                                 `${selectedBeneficiaries.length} jeune(s) inscrit(s) !`,
                               );
                               setSelectedBeneficiaries([]);
-                              onClose();
                             });
                           }}
                           className="bg-black dark:bg-zinc-700 text-white px-3 py-1 rounded-full text-[10px] font-black hover:bg-zinc-800 shrink-0"
@@ -346,7 +345,6 @@ const SessionModal = ({
                                 `${selectedVolunteers.length} bénévole(s) inscrit(s) !`,
                               );
                               setSelectedVolunteers([]);
-                              onClose();
                             });
                           }}
                           className="bg-black dark:bg-zinc-700 text-white px-3 py-1 rounded-full text-[10px] font-black hover:bg-zinc-800 shrink-0"
