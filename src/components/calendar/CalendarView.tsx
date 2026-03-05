@@ -4,12 +4,14 @@ import {
     Calendar as CalendarIcon,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     Clock,
     Plus,
     Trash2,
     Users,
     CheckCircle,
-    List
+    List,
+    Printer
 } from 'lucide-react';
 import { User, Session } from '../../types';
 
@@ -37,6 +39,7 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     const [selectedSessionIds, setSelectedSessionIds] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [showPrintMenu, setShowPrintMenu] = useState(false);
     const [dragOverTarget, setDragOverTarget] = useState<{ rowType: string; dayIndex: number } | null>(null);
     const draggedSessionRef = useRef<{ id: number; type: string } | null>(null);
     const SESSION_ROW_TYPES = ['homework_help', 'activity', 'room_booking'] as const;
@@ -50,6 +53,266 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     const showSuccess = (msg: string) => {
         setSuccessMessage(msg);
         setTimeout(() => setSuccessMessage(null), 3000);
+    };
+
+    const handlePrintWeeklyPlan = () => {
+        const weekStart = daysInWeek[0];
+        const weekEnd = daysInWeek[6];
+        
+        // Filter sessions for this week
+        const weekSessions = sessions.filter(s => {
+            const sessionDate = new Date(s.start_time);
+            return sessionDate >= weekStart && sessionDate <= weekEnd;
+        });
+
+        // Group by type
+        const grouped = {
+            homework_help: weekSessions.filter(s => s.type === 'homework_help'),
+            activity: weekSessions.filter(s => s.type === 'activity'),
+            room_booking: weekSessions.filter(s => s.type === 'room_booking')
+        };
+
+        const weekFormatted = `${weekStart.toLocaleDateString('fr-FR')} - ${weekEnd.toLocaleDateString('fr-FR')}`;
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Planning de la semaine</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 10px; background: white;
+            margin: 0;
+        }
+        h1 { text-align: center; color: #1f2937; margin-bottom: 3px; font-size: 16px; font-weight: 700; }
+        .week-range { text-align: center; color: #6b7280; margin-bottom: 8px; font-size: 11px; font-weight: 500; }
+        .container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .section { break-inside: avoid; page-break-inside: avoid; }
+        .section-title { 
+            font-size: 12px; font-weight: 700; margin-bottom: 6px; padding-bottom: 3px; 
+            border-bottom: 2px solid #3b82f6; color: #1f2937;
+        }
+        .section.activities .section-title { border-bottom-color: #10b981; }
+        .section.room .section-title { border-bottom-color: #f59e0b; }
+        .session-card {
+            background: #f9fafb; border: 1px solid #d1d5db; border-radius: 3px; 
+            padding: 6px 8px; margin-bottom: 5px; break-inside: avoid; page-break-inside: avoid; font-size: 10px;
+        }
+        .session-header { display: flex; flex-direction: column; gap: 1px; margin-bottom: 3px; }
+        .session-title { font-weight: 700; color: #1f2937; font-size: 10px; }
+        .session-time { color: #6b7280; font-size: 9px; font-weight: 600; }
+        .session-detail { color: #4b5563; font-size: 9px; line-height: 1.3; }
+        .empty { color: #9ca3af; font-style: italic; font-size: 9px; }
+        @media print {
+            @page { size: landscape; margin: 8mm; }
+            html { margin: 0; padding: 0; }
+            body { padding: 8px; margin: 0; }
+            .session-card { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Planning hebdomadaire</h1>
+    <div class="week-range">${weekFormatted}</div>
+
+    <div class="container">
+        <div class="section homework">
+            <div class="section-title">📚 Aide aux devoirs</div>
+            ${grouped.homework_help.length > 0 
+                ? grouped.homework_help.map(s => formatSessionCard(s)).join('')
+                : '<div class="empty">Aucune session cette semaine</div>'
+            }
+        </div>
+
+        <div class="section activities">
+            <div class="section-title">🎯 Activités</div>
+            ${grouped.activity.length > 0 
+                ? grouped.activity.map(s => formatSessionCard(s)).join('')
+                : '<div class="empty">Aucune activité cette semaine</div>'
+            }
+        </div>
+
+        <div class="section room">
+            <div class="section-title">🏠 Réservations</div>
+            ${grouped.room_booking.length > 0 
+                ? grouped.room_booking.map(s => formatSessionCard(s)).join('')
+                : '<div class="empty">Aucune réservation cette semaine</div>'
+            }
+        </div>
+    </div>
+
+    <script>
+        window.print();
+        window.close();
+    </script>
+</body>
+</html>
+        `;
+
+        const printWindow = window.open('', '', 'height=800,width=1000');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+        setShowPrintMenu(false);
+    };
+
+    const handlePrintAttendanceSheet = () => {
+        // Collect all participants from all sessions
+        const allParticipants: any[] = [];
+        sessions.forEach(s => {
+            if (s.participants) {
+                s.participants.forEach(p => {
+                    allParticipants.push({
+                        firstname: p.firstname,
+                        lastname: p.lastname,
+                        role: p.role,
+                        sessionType: s.type,
+                        sessionTitle: s.title || ROW_LABELS[s.type as keyof typeof ROW_LABELS]
+                    });
+                });
+            }
+        });
+
+        // Group by role
+        const grouped = {
+            beneficiary: allParticipants.filter(p => p.role === 'beneficiary'),
+            volunteer: allParticipants.filter(p => p.role === 'volunteer'),
+            civic_service: allParticipants.filter(p => p.role === 'civic_service')
+        };
+
+        // Remove duplicates by full name
+        const deduped = {
+            beneficiary: Array.from(new Map(grouped.beneficiary.map(p => [`${p.firstname} ${p.lastname}`, p])).values()),
+            volunteer: Array.from(new Map(grouped.volunteer.map(p => [`${p.firstname} ${p.lastname}`, p])).values()),
+            civic_service: Array.from(new Map(grouped.civic_service.map(p => [`${p.firstname} ${p.lastname}`, p])).values())
+        };
+
+        const today = new Date().toLocaleDateString('fr-FR');
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Fiche de présence</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: white; }
+        h1 { text-align: center; color: #1f2937; margin-bottom: 30px; font-size: 28px; }
+        .date { text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; break-inside: avoid; page-break-inside: avoid; }
+        .section-title { 
+            font-size: 18px; font-weight: 700; margin-bottom: 16px; padding: 12px; 
+            background: #f3f4f6; border-left: 4px solid #3b82f6; color: #1f2937;
+        }
+        .participant-list { margin-bottom: 20px; }
+        .participant-item {
+            padding: 12px 16px; border-bottom: 1px solid #e5e7eb; 
+            display: flex; align-items: center; font-size: 14px;
+        }
+        .participant-number { 
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 24px; height: 24px; background: #3b82f6; color: white; 
+            border-radius: 50%; font-weight: 700; margin-right: 12px; font-size: 12px;
+        }
+        .participant-name { color: #1f2937; font-weight: 600; }
+        .participant-check { margin-left: auto; width: 24px; height: 24px; border: 2px solid #d1d5db; border-radius: 4px; }
+        .empty { color: #9ca3af; font-style: italic; padding: 16px; }
+        @media print {
+            body { padding: 20px; }
+            .section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <h1>📋 Fiche de présence</h1>
+    <div class="date">${today}</div>
+
+    <div class="section">
+        <div class="section-title">👥 Bénéficiaires</div>
+        <div class="participant-list">
+            ${deduped.beneficiary.length > 0 
+                ? deduped.beneficiary.map((p, i) => `
+                    <div class="participant-item">
+                        <span class="participant-number">${i + 1}</span>
+                        <span class="participant-name">${p.firstname} ${p.lastname}</span>
+                        <div class="participant-check"></div>
+                    </div>
+                `).join('')
+                : '<div class="empty">Aucun bénéficiaire</div>'
+            }
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">🤝 Bénévoles</div>
+        <div class="participant-list">
+            ${deduped.volunteer.length > 0 
+                ? deduped.volunteer.map((p, i) => `
+                    <div class="participant-item">
+                        <span class="participant-number">${i + 1}</span>
+                        <span class="participant-name">${p.firstname} ${p.lastname}</span>
+                        <div class="participant-check"></div>
+                    </div>
+                `).join('')
+                : '<div class="empty">Aucun bénévole</div>'
+            }
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">🏛️ Service civique</div>
+        <div class="participant-list">
+            ${deduped.civic_service.length > 0 
+                ? deduped.civic_service.map((p, i) => `
+                    <div class="participant-item">
+                        <span class="participant-number">${i + 1}</span>
+                        <span class="participant-name">${p.firstname} ${p.lastname}</span>
+                        <div class="participant-check"></div>
+                    </div>
+                `).join('')
+                : '<div class="empty">Aucun service civique</div>'
+            }
+        </div>
+    </div>
+
+    <script>
+        window.print();
+        window.close();
+    </script>
+</body>
+</html>
+        `;
+
+        const printWindow = window.open('', '', 'height=800,width=1000');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+        setShowPrintMenu(false);
+    };
+
+    const formatSessionCard = (s: Session) => {
+        const date = new Date(s.start_time).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+        const time = new Date(s.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(s.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const participantCount = s.participants?.length || 0;
+        const maxParticipants = s.max_participants || '∞';
+        
+        return `
+        <div class="session-card">
+            <div class="session-header">
+                <div class="session-title">${s.title || ROW_LABELS[s.type as keyof typeof ROW_LABELS]}</div>
+                <div class="session-time">${time} - ${endTime}</div>
+            </div>
+            <div class="session-detail">${date} • 👥 ${participantCount}/${maxParticipants}${s.participants && s.participants.length > 0 ? ' • ' + s.participants.map(p => `${p.firstname} ${p.lastname}`).join(', ') : ''}</div>
+        </div>
+        `;
     };
 
     const fetchSessions = async () => {
@@ -289,6 +552,23 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                 </div>
 
                 <div className="flex gap-2">
+                    {(user.role === 'admin' || user.role === 'civic_service') && (
+                    <div className="relative">
+                        <button onClick={() => setShowPrintMenu(!showPrintMenu)} className="flex items-center gap-2 bg-zinc-500 dark:bg-zinc-600 text-white px-4 py-2 rounded-xl hover:bg-zinc-600 dark:hover:bg-zinc-500 transition-all font-bold text-xs uppercase tracking-widest shadow-lg">
+                            <Printer size={16} /> Imprimer <ChevronDown size={14} />
+                        </button>
+                        {showPrintMenu && (
+                            <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-50 min-w-max">
+                                <button onClick={() => { handlePrintWeeklyPlan(); }} className="block w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-sm font-semibold text-zinc-900 dark:text-zinc-100 first:rounded-t-lg">
+                                    Planning de la semaine
+                                </button>
+                                <button onClick={() => { handlePrintAttendanceSheet(); }} className="block w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-sm font-semibold text-zinc-900 dark:text-zinc-100 last:rounded-b-lg border-t border-zinc-200 dark:border-zinc-700">
+                                    Fiche de présence
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    )}
                     {(user.role === 'civic_service' || user.role === 'admin') && (
                         <button onClick={() => setShowAddActivity(true)} className="flex items-center gap-2 bg-black dark:bg-white dark:text-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all font-bold text-xs uppercase tracking-widest shadow-lg">
                             <Plus size={16} /> Nouvelle Activité
