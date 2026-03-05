@@ -418,7 +418,6 @@ const SessionModal = ({
                               <button
                                 onClick={() => {
                                   onUnregister(selectedSession.id, p.user_id);
-                                  onClose();
                                   showSuccess("Utilisateur retiré !");
                                 }}
                                 className="text-zinc-300 hover:text-red-500 transition-colors"
@@ -468,7 +467,6 @@ const SessionModal = ({
                               <button
                                 onClick={() => {
                                   onUnregister(selectedSession.id, p.user_id);
-                                  onClose();
                                   showSuccess("Utilisateur retiré !");
                                 }}
                                 className="text-zinc-300 hover:text-red-500 transition-colors"
