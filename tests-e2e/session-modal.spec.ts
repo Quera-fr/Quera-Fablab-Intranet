@@ -149,7 +149,6 @@ test.describe("SessionModal - Bénéficiaire", () => {
       participants: [],
     };
 
-    // Intercepter l'appel API pour injecter notre session spécifique
     await page.route("**/api/sessions", (route) =>
       route.fulfill({
         status: 200,
@@ -158,8 +157,6 @@ test.describe("SessionModal - Bénéficiaire", () => {
       }),
     );
 
-    // Au lieu de reload, on navigue vers une autre page interne et on revient ou on simule un événement
-    // pour forcer le composant à fetcher sans perdre la session.
     await page.evaluate(() => (window.location.hash = "#refresh"));
     await expect(page.locator("h2", { hasText: "Planning" })).toBeVisible();
 
@@ -169,7 +166,6 @@ test.describe("SessionModal - Bénéficiaire", () => {
     await expect(sessionCard).toBeVisible({ timeout: 10000 });
     await sessionCard.click();
 
-    // Mock du POST d'inscription
     await page.route("**/api/registrations", (route) =>
       route.fulfill({ status: 201, json: {} }),
     );
@@ -178,7 +174,6 @@ test.describe("SessionModal - Bénéficiaire", () => {
     await expect(subscribeBtn).toBeVisible();
     await subscribeBtn.click();
 
-    // Modale fermée, on prépare le mock avec Alice dedans
     const sessionWithAlice = {
       ...sessionHw,
       participants: [
@@ -200,7 +195,6 @@ test.describe("SessionModal - Bénéficiaire", () => {
       }),
     );
 
-    // Ré-ouverture forcée si la modale s'est fermée au clic précédent
     if (await page.locator("div.fixed.inset-0").isHidden()) {
       await sessionCard.click();
     }
@@ -676,6 +670,26 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
     participants: [],
   };
 
+  const sessionWithAliceAndBob = {
+    ...sessionData,
+    participants: [
+      {
+        user_id: 101,
+        role_at_registration: "beneficiary",
+        firstname: "Alice",
+        lastname: "Alpha",
+        role: "beneficiary",
+      },
+      {
+        user_id: 102,
+        role_at_registration: "beneficiary",
+        firstname: "Bob",
+        lastname: "Beta",
+        role: "beneficiary",
+      },
+    ],
+  };
+
   async function setupMocksAndLogin(
     page: any,
     loginFn: (p: any) => Promise<void>,
@@ -702,13 +716,12 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
       }),
     );
 
-    // Enregistré AVANT le login pour intercepter le fetch de CalendarView après montage
     const sessionsServed = page.waitForResponse(
       (r: any) => r.url().includes("/api/sessions") && r.status() === 200,
       { timeout: 20000 },
     );
     await loginFn(page);
-    await sessionsServed; // garantit que React a reçu les sessions avant de continuer
+    await sessionsServed;
   }
 
   test("admin inscrit plusieurs bénéficiaires via sélection multiple et GO", async ({
@@ -748,7 +761,6 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
     });
     await page.locator('[class*="rs__option"]').first().click();
 
-    // react-select isMulti garde le menu ouvert après chaque sélection (closeMenuOnSelect=false par défaut)
     // Bob est maintenant la 1ère option (Alice retirée des options disponibles)
     await expect(page.locator('[class*="rs__option"]').first()).toBeVisible({
       timeout: 3000,
@@ -756,16 +768,34 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
     await page.locator('[class*="rs__option"]').first().click();
 
     // Vérifier que les 2 tags apparaissent dans le select
-    await expect(page.locator('.rs__multi-value')).toHaveCount(2);
+    await expect(page.locator(".rs__multi-value")).toHaveCount(2);
+
+    // Mettre à jour le mock sessions pour retourner Alice + Bob comme participants
+    const now = new Date();
+    await page.route("**/api/sessions", (route: any) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{
+          ...sessionWithAliceAndBob,
+          start_time: now.toISOString(),
+          end_time: new Date(now.getTime() + 3600_000).toISOString(),
+        }]),
+      }),
+    );
 
     // Cliquer GO
     await page.getByRole("button", { name: "GO" }).first().click();
-    await page.waitForTimeout(400);
 
-    // Deux requêtes POST doivent avoir été envoyées, une par bénéficiaire
+    // Vérifier les requêtes POST envoyées
+    await page.waitForTimeout(400);
     expect(registeredUserIds).toHaveLength(2);
     expect(registeredUserIds).toContain(101); // Alice
     expect(registeredUserIds).toContain(102); // Bob
+
+    // Vérifier que Alice et Bob apparaissent dans "Bénéficiaires inscrits"
+    await expect(page.locator("text=Alice Alpha")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Bob Beta")).toBeVisible({ timeout: 5000 });
   });
 
   test("civic service inscrit plusieurs bénéficiaires via sélection multiple et GO", async ({
@@ -804,7 +834,7 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
       timeout: 5000,
     });
 
-    // Sélectionner Alice — le menu reste ouvert (closeMenuOnSelect=false pour isMulti)
+    // Sélectionner Alice
     await page.locator('[class*="rs__option"]').first().click();
 
     // Sélectionner Bob qui est maintenant la 1ère option
@@ -814,13 +844,33 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
     await page.locator('[class*="rs__option"]').first().click();
 
     // Vérifier que les 2 tags apparaissent dans le select
-    await expect(page.locator('.rs__multi-value')).toHaveCount(2);
+    await expect(page.locator(".rs__multi-value")).toHaveCount(2);
 
+    // Mettre à jour le mock sessions pour retourner Alice + Bob comme participants
+    const now = new Date();
+    await page.route("**/api/sessions", (route: any) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{
+          ...sessionWithAliceAndBob,
+          start_time: now.toISOString(),
+          end_time: new Date(now.getTime() + 3600_000).toISOString(),
+        }]),
+      }),
+    );
+
+    // Cliquer GO
     await page.getByRole("button", { name: "GO" }).first().click();
-    await page.waitForTimeout(400);
 
+    // Vérifier les requêtes POST envoyées
+    await page.waitForTimeout(400);
     expect(registeredUserIds).toHaveLength(2);
     expect(registeredUserIds).toContain(101); // Alice
     expect(registeredUserIds).toContain(102); // Bob
+
+    // Vérifier que Alice et Bob apparaissent dans "Bénéficiaires inscrits"
+    await expect(page.locator("text=Alice Alpha")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Bob Beta")).toBeVisible({ timeout: 5000 });
   });
 });
