@@ -288,10 +288,11 @@ describe('Print Functionality', () => {
             await user.click(planningOption);
 
             await waitFor(() => {
-                expect(capturedHtml).toContain('Planning hebdomadaire');
+                expect(capturedHtml).toContain('PLANNING DE LA SEMAINE');
+                expect(capturedHtml).toContain('Quera Fablab');
+                expect(capturedHtml).toContain('LUNDI');
+                expect(capturedHtml).toContain('MARDI');
                 expect(capturedHtml).toContain('Aide aux devoirs');
-                expect(capturedHtml).toContain('Activités');
-                expect(capturedHtml).toContain('Réservations');
             });
         });
 
