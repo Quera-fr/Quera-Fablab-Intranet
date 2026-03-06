@@ -142,6 +142,27 @@ describe('SessionModal', () => {
         expect(mockShowSuccess).toHaveBeenCalledWith("Utilisateur retiré !");
     });
 
+    it('service civique can remove a volunteer from session', async () => {
+        // create session including a volunteer participant
+        const sessionWithVolunteer = {
+            ...mockActivitySession,
+            participants: [
+                { user_id: mockVolunteer.id, firstname: mockVolunteer.firstname, lastname: mockVolunteer.lastname, role_at_registration: 'volunteer', registration_date: '2025-09-01' }
+            ]
+        };
+        // civic service user
+        const civicUser = { ...mockAdminUser, role: 'civic_service' as const };
+        renderModal(sessionWithVolunteer, civicUser);
+
+        const trashButtons = screen.getAllByTitle('Retirer');
+        // there should be one trash button for the volunteer
+        await userEvent.click(trashButtons[0]);
+
+        expect(mockOnUnregister).toHaveBeenCalledWith(sessionWithVolunteer.id, mockVolunteer.id);
+        expect(mockOnClose).toHaveBeenCalled();
+        expect(mockShowSuccess).toHaveBeenCalledWith("Utilisateur retiré !");
+    });
+
     it('admin can manually register a beneficiary', async () => {
         (global.fetch as vi.Mock).mockResolvedValue({ ok: true });
 
