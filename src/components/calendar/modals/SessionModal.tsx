@@ -178,6 +178,7 @@ const SessionModal = ({
                       <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-2xl overflow-hidden w-full gap-1 px-1">
                         <Select
                           isMulti
+                          closeMenuOnSelect={false}
                           options={beneficiaryOptions}
                           value={selectedBeneficiaries}
                           onChange={(opts) =>
@@ -267,6 +268,7 @@ const SessionModal = ({
                       <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-2xl overflow-hidden w-full gap-1 px-1">
                         <Select
                           isMulti
+                          closeMenuOnSelect={false}
                           options={volunteerOptions}
                           value={selectedVolunteers}
                           onChange={(opts) =>
