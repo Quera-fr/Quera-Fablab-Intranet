@@ -1,0 +1,197 @@
+
+Running 15 tests using 4 workers
+
+[1A[2K[1/15] [chromium] › tests-e2e\print.spec.ts:113:5 › Print Button Visibility › print button should be visible for civic_service user
+[1A[2K[2/15] [chromium] › tests-e2e\print.spec.ts:102:5 › Print Button Visibility › print button should be visible for admin user
+[1A[2K[3/15] [chromium] › tests-e2e\print.spec.ts:124:5 › Print Button Visibility › print button should NOT be visible for beneficiary user
+[1A[2K[4/15] [chromium] › tests-e2e\print.spec.ts:137:5 › Print Menu Dropdown › should open print menu when clicking print button
+[1A[2K[5/15] [chromium] › tests-e2e\print.spec.ts:150:5 › Print Menu Dropdown › should close print menu when clicking print button again
+[1A[2K[6/15] [chromium] › tests-e2e\print.spec.ts:166:5 › Print Menu Dropdown › should have both menu options visible
+[1A[2K[7/15] [chromium] › tests-e2e\print.spec.ts:184:5 › Print Weekly Plan › clicking "Planning de la semaine" should open print dialog
+[1A[2K[8/15] [chromium] › tests-e2e\print.spec.ts:210:5 › Print Weekly Plan › planning should include session types headings
+[1A[2K[9/15] [chromium] › tests-e2e\print.spec.ts:235:5 › Print Weekly Plan › planning should be formatted for landscape printing
+[1A[2K[10/15] [chromium] › tests-e2e\print.spec.ts:262:5 › Print Attendance Sheet › clicking "Fiche de présence" should open print dialog
+[1A[2K  1) [chromium] › tests-e2e\print.spec.ts:184:5 › Print Weekly Plan › clicking "Planning de la semaine" should open print dialog 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      197 |
+      198 |         if (popup) {
+    > 199 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      200 |             
+      201 |             // Check that the popup contains expected content
+      202 |             const content = await popup.content();
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:199:25
+
+    Error Context: test-results\print-Print-Weekly-Plan-cl-27021-ne-should-open-print-dialog-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Weekly-Plan-cl-27021-ne-should-open-print-dialog-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Weekly-Plan-cl-27021-ne-should-open-print-dialog-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  2) [chromium] › tests-e2e\print.spec.ts:210:5 › Print Weekly Plan › planning should include session types headings 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      222 |
+      223 |         if (popup) {
+    > 224 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      225 |             
+      226 |             const content = await popup.content();
+      227 |             expect(content).toContain('Aide aux devoirs');
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:224:25
+
+    Error Context: test-results\print-Print-Weekly-Plan-pl-01549-lude-session-types-headings-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Weekly-Plan-pl-01549-lude-session-types-headings-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Weekly-Plan-pl-01549-lude-session-types-headings-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  3) [chromium] › tests-e2e\print.spec.ts:235:5 › Print Weekly Plan › planning should be formatted for landscape printing 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      247 |
+      248 |         if (popup) {
+    > 249 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      250 |             
+      251 |             const content = await popup.content();
+      252 |             // Check for landscape print CSS
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:249:25
+
+    Error Context: test-results\print-Print-Weekly-Plan-pl-14218-tted-for-landscape-printing-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Weekly-Plan-pl-14218-tted-for-landscape-printing-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Weekly-Plan-pl-14218-tted-for-landscape-printing-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  4) [chromium] › tests-e2e\print.spec.ts:262:5 › Print Attendance Sheet › clicking "Fiche de présence" should open print dialog 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      274 |
+      275 |         if (popup) {
+    > 276 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      277 |             
+      278 |             const content = await popup.content();
+      279 |             expect(content).toContain('Fiche de présence');
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:276:25
+
+    Error Context: test-results\print-Print-Attendance-She-6d482-ce-should-open-print-dialog-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Attendance-She-6d482-ce-should-open-print-dialog-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Attendance-She-6d482-ce-should-open-print-dialog-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K[11/15] [chromium] › tests-e2e\print.spec.ts:310:5 › Print Attendance Sheet › attendance sheet should include checkboxes for participants
+[1A[2K[12/15] [chromium] › tests-e2e\print.spec.ts:285:5 › Print Attendance Sheet › attendance sheet should include participant categories
+[1A[2K[13/15] [chromium] › tests-e2e\print.spec.ts:335:5 › Print Attendance Sheet › attendance sheet should display current date
+[1A[2K[14/15] [chromium] › tests-e2e\print.spec.ts:361:5 › Print Menu Integration › civic_service can access both print options
+[1A[2K  5) [chromium] › tests-e2e\print.spec.ts:310:5 › Print Attendance Sheet › attendance sheet should include checkboxes for participants 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      322 |
+      323 |         if (popup) {
+    > 324 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      325 |             
+      326 |             const content = await popup.content();
+      327 |             // Check for checkbox styling
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:324:25
+
+    Error Context: test-results\print-Print-Attendance-She-b0479-checkboxes-for-participants-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Attendance-She-b0479-checkboxes-for-participants-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Attendance-She-b0479-checkboxes-for-participants-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  6) [chromium] › tests-e2e\print.spec.ts:285:5 › Print Attendance Sheet › attendance sheet should include participant categories 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      297 |
+      298 |         if (popup) {
+    > 299 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      300 |             
+      301 |             const content = await popup.content();
+      302 |             expect(content).toContain('Bénéficiaires');
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:299:25
+
+    Error Context: test-results\print-Print-Attendance-She-c5d9c-lude-participant-categories-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Attendance-She-c5d9c-lude-participant-categories-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Attendance-She-c5d9c-lude-participant-categories-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  7) [chromium] › tests-e2e\print.spec.ts:335:5 › Print Attendance Sheet › attendance sheet should display current date 
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+      347 |
+      348 |         if (popup) {
+    > 349 |             await popup.waitForLoadState('networkidle');
+          |                         ^
+      350 |             
+      351 |             const content = await popup.content();
+      352 |             const today = new Date().toLocaleDateString('fr-FR');
+        at C:\Users\Utilisateur\Quera-Fablab-Intranet\tests-e2e\print.spec.ts:349:25
+
+    Error Context: test-results\print-Print-Attendance-She-11701-should-display-current-date-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\print-Print-Attendance-She-11701-should-display-current-date-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\print-Print-Attendance-She-11701-should-display-current-date-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K[15/15] [chromium] › tests-e2e\print.spec.ts:374:5 › Print Menu Integration › menu closes after selecting an option
+[1A[2K  7 failed
+    [chromium] › tests-e2e\print.spec.ts:184:5 › Print Weekly Plan › clicking "Planning de la semaine" should open print dialog 
+    [chromium] › tests-e2e\print.spec.ts:210:5 › Print Weekly Plan › planning should include session types headings 
+    [chromium] › tests-e2e\print.spec.ts:235:5 › Print Weekly Plan › planning should be formatted for landscape printing 
+    [chromium] › tests-e2e\print.spec.ts:262:5 › Print Attendance Sheet › clicking "Fiche de présence" should open print dialog 
+    [chromium] › tests-e2e\print.spec.ts:285:5 › Print Attendance Sheet › attendance sheet should include participant categories 
+    [chromium] › tests-e2e\print.spec.ts:310:5 › Print Attendance Sheet › attendance sheet should include checkboxes for participants 
+    [chromium] › tests-e2e\print.spec.ts:335:5 › Print Attendance Sheet › attendance sheet should display current date 
+  8 passed (33.7s)
+
+[36m  Serving HTML report at http://localhost:9323. Press Ctrl+C to quit.[39m
