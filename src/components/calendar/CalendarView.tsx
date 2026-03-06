@@ -73,6 +73,18 @@ const CalendarView = ({ user }: CalendarViewProps) => {
         };
 
         const weekFormatted = `${weekStart.toLocaleDateString('fr-FR')} - ${weekEnd.toLocaleDateString('fr-FR')}`;
+        const dayNames = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI'];
+        
+        // Group sessions by day
+        const sessionsByDay: any = {
+            0: [], 1: [], 2: [], 3: [], 4: []
+        };
+        weekSessions.forEach(s => {
+            const dayIndex = new Date(s.start_time).getDay();
+            if (dayIndex >= 1 && dayIndex <= 5) {
+                sessionsByDay[dayIndex - 1].push(s);
+            }
+        });
 
         const html = `
 <!DOCTYPE html>
@@ -85,64 +97,108 @@ const CalendarView = ({ user }: CalendarViewProps) => {
         html { margin: 0; padding: 0; }
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            padding: 10px; background: white;
-            margin: 0;
+            padding: 40px 30px; background: white; margin: 0;
         }
-        h1 { text-align: center; color: #1f2937; margin-bottom: 3px; font-size: 16px; font-weight: 700; }
-        .week-range { text-align: center; color: #6b7280; margin-bottom: 8px; font-size: 11px; font-weight: 500; }
-        .container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-        .section { break-inside: avoid; page-break-inside: avoid; }
-        .section-title { 
-            font-size: 12px; font-weight: 700; margin-bottom: 6px; padding-bottom: 3px; 
-            border-bottom: 2px solid #3b82f6; color: #1f2937;
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: bold; color: #1f2937; }
+        .title-section { text-align: center; flex: 1; }
+        h1 { 
+            font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 15px; 
+            letter-spacing: 1px;
         }
-        .section.activities .section-title { border-bottom-color: #10b981; }
-        .section.room .section-title { border-bottom-color: #f59e0b; }
-        .session-card {
-            background: #f9fafb; border: 1px solid #d1d5db; border-radius: 3px; 
-            padding: 6px 8px; margin-bottom: 5px; break-inside: avoid; page-break-inside: avoid; font-size: 10px;
+        .dates { 
+            font-size: 18px; font-weight: 600; color: #374151; margin-bottom: 30px;
         }
-        .session-header { display: flex; flex-direction: column; gap: 1px; margin-bottom: 3px; }
-        .session-title { font-weight: 700; color: #1f2937; font-size: 10px; }
-        .session-time { color: #6b7280; font-size: 9px; font-weight: 600; }
-        .session-detail { color: #4b5563; font-size: 9px; line-height: 1.3; }
-        .empty { color: #9ca3af; font-style: italic; font-size: 9px; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+        .day-column { 
+            border: 2px solid #1f2937; 
+            border-radius: 4px; 
+            padding: 12px; 
+            min-height: 350px;
+            background: #ffffff;
+        }
+        .day-header { 
+            font-size: 14px; 
+            font-weight: 700; 
+            color: #1f2937; 
+            text-align: center; 
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1f2937;
+            margin-bottom: 10px;
+        }
+        .session-item {
+            background: #f3f4f6; 
+            border: 1px solid #d1d5db; 
+            border-radius: 3px;
+            padding: 6px 8px;
+            margin-bottom: 8px;
+            font-size: 10px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .session-time { 
+            font-weight: 700; 
+            color: #1f2937; 
+            font-size: 10px;
+        }
+        .session-title { 
+            font-size: 9px; 
+            color: #4b5563; 
+            margin-top: 2px;
+        }
+        .empty { 
+            color: #9ca3af; 
+            font-style: italic; 
+            font-size: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 10px;
+            color: #6b7280;
+        }
         @media print {
-            @page { size: landscape; margin: 8mm; }
+            @page { size: landscape; margin: 15mm; }
             html { margin: 0; padding: 0; }
-            body { padding: 8px; margin: 0; }
-            .session-card { page-break-inside: avoid; }
+            body { padding: 30px; margin: 0; }
         }
     </style>
 </head>
 <body>
-    <h1>Planning hebdomadaire</h1>
-    <div class="week-range">${weekFormatted}</div>
-
-    <div class="container">
-        <div class="section homework">
-            <div class="section-title">📚 Aide aux devoirs</div>
-            ${grouped.homework_help.length > 0 
-                ? grouped.homework_help.map(s => formatSessionCard(s)).join('')
-                : '<div class="empty">Aucune session cette semaine</div>'
-            }
+    <div class="header">
+        <div class="logo">Quera Fablab</div>
+        <div class="title-section">
+            <h1>PLANNING DE LA SEMAINE</h1>
+            <div class="dates">Du ${weekFormatted}</div>
         </div>
+    </div>
 
-        <div class="section activities">
-            <div class="section-title">🎯 Activités</div>
-            ${grouped.activity.length > 0 
-                ? grouped.activity.map(s => formatSessionCard(s)).join('')
-                : '<div class="empty">Aucune activité cette semaine</div>'
-            }
-        </div>
+    <div class="grid">
+        ${dayNames.map((dayName, index) => `
+            <div class="day-column">
+                <div class="day-header">${dayName}</div>
+                ${sessionsByDay[index].length > 0 
+                    ? sessionsByDay[index].map(s => {
+                        const time = new Date(s.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        const endTime = new Date(s.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        return `
+                            <div class="session-item">
+                                <div class="session-time">${time} - ${endTime}</div>
+                                <div class="session-title">${s.title || (s.type === 'homework_help' ? 'Aide aux devoirs' : s.type === 'activity' ? 'Activités' : 'Réservation du local')}</div>
+                                ${s.participants ? `<div class="session-title">👥 ${s.participants.length}/${s.max_participants || '∞'}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('') 
+                    : '<div class="empty">Aucune session</div>'
+                }
+            </div>
+        `).join('')}
+    </div>
 
-        <div class="section room">
-            <div class="section-title">🏠 Réservations</div>
-            ${grouped.room_booking.length > 0 
-                ? grouped.room_booking.map(s => formatSessionCard(s)).join('')
-                : '<div class="empty">Aucune réservation cette semaine</div>'
-            }
-        </div>
+    <div class="footer">
+        Planning généré le ${new Date().toLocaleDateString('fr-FR')}
     </div>
 
     <script>
