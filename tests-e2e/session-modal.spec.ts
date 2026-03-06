@@ -22,7 +22,16 @@ const mockBeneficiary: User = {
     address: '1 Rue du Test',
 };
 
-// login helpers copied from other specs
+const mockCivic: User = {
+    id: 7,
+    email: 'civic@assoc.fr',
+    lastname: 'Service',
+    firstname: 'Civic',
+    role: 'civic_service',
+    dob: '1990-01-01',
+    address: '1 Rue du Service',
+};
+
 async function loginAsAdmin(page: any) {
     await page.goto('/');
     await page.fill('input[type="email"]', 'admin@assoc.fr');
@@ -33,16 +42,6 @@ async function loginAsAdmin(page: any) {
     ]);
     await page.waitForLoadState('networkidle');
 }
-
-const mockCivic: User = {
-    id: 7,
-    email: 'civic@assoc.fr',
-    lastname: 'Service',
-    firstname: 'Civic',
-    role: 'civic_service',
-    dob: '1990-01-01',
-    address: '1 Rue du Service',
-};
 
 async function loginAsCivic(page: any) {
     await page.goto('/');
@@ -128,52 +127,46 @@ test.describe('SessionModal - Bénéficiaire', () => {
 
     test('flux inscription aide aux devoirs : inscription et vérification du nom', async ({ page }) => {
         const now = new Date();
-        const sessionHw = { 
-            id: 9991, 
-            type: 'homework_help', 
+        const sessionHw = {
+            id: 9991,
+            type: 'homework_help',
             activity_id: null,
-            start_time: now.toISOString(), 
-            end_time: now.toISOString(), 
+            start_time: now.toISOString(),
+            end_time: now.toISOString(),
             status: 'approved',
-            participants: [] 
+            participants: [],
         };
-        
-        // Intercepter l'appel API pour injecter notre session spécifique
-        await page.route('**/api/sessions', route => route.fulfill({ 
-            status: 200, 
+
+        await page.route('**/api/sessions', route => route.fulfill({
+            status: 200,
             contentType: 'application/json',
-            body: JSON.stringify([sessionHw]) 
+            body: JSON.stringify([sessionHw]),
         }));
 
-        // Au lieu de reload, on navigue vers une autre page interne et on revient ou on simule un événement
-        // pour forcer le composant à fetcher sans perdre la session.
-        await page.evaluate(() => window.location.hash = '#refresh'); 
+        await page.evaluate(() => window.location.hash = '#refresh');
         await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
 
         const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         await expect(sessionCard).toBeVisible({ timeout: 10000 });
         await sessionCard.click();
 
-        // Mock du POST d'inscription
         await page.route('**/api/registrations', route => route.fulfill({ status: 201, json: {} }));
 
         const subscribeBtn = page.getByRole('button', { name: /S'INSCRIRE/i });
         await expect(subscribeBtn).toBeVisible();
         await subscribeBtn.click();
 
-        // Modale fermée, on prépare le mock avec Alice dedans
-        const sessionWithAlice = { 
-            ...sessionHw, 
-            participants: [{ user_id: 42, role_at_registration: 'beneficiary', firstname: 'Alice', lastname: 'Martin', role: 'beneficiary' }] 
+        const sessionWithAlice = {
+            ...sessionHw,
+            participants: [{ user_id: 42, role_at_registration: 'beneficiary', firstname: 'Alice', lastname: 'Martin', role: 'beneficiary' }],
         };
-        
-        await page.route('**/api/sessions', route => route.fulfill({ 
-            status: 200, 
+
+        await page.route('**/api/sessions', route => route.fulfill({
+            status: 200,
             contentType: 'application/json',
-            body: JSON.stringify([sessionWithAlice]) 
+            body: JSON.stringify([sessionWithAlice]),
         }));
 
-        // Ré-ouverture forcée si la modale s'est fermée au clic précédent
         if (await page.locator('div.fixed.inset-0').isHidden()) {
             await sessionCard.click();
         }
@@ -202,8 +195,8 @@ test.describe('SessionModal - Administrateur', () => {
 
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
         await expect(page.getByRole('button', { name: /Supprimer la session/i })).toBeVisible();
-        await expect(page.locator('select[id^="manual-reg-ben-"]')).toBeVisible();
-        await expect(page.locator('select[id^="manual-reg-vol-"]')).toBeVisible();
+        await expect(page.locator('[class*="rs__control"]').first()).toBeVisible();
+        await expect(page.locator('[class*="rs__control"]').nth(1)).toBeVisible();
 
         const closeBtn = page.locator('button').filter({ has: page.locator('svg') }).first();
         await closeBtn.click({ force: true });
@@ -259,7 +252,7 @@ test.describe('SessionModal - Administrateur', () => {
                 await page.click('button:has-text("Suspendre")');
             }
             await expect(patchCalled).toBeTruthy();
-            expect(['approved','pending']).toContain(bodyData.status);
+            expect(['approved', 'pending']).toContain(bodyData.status);
         }
     });
 
@@ -272,32 +265,108 @@ test.describe('SessionModal - Administrateur', () => {
         await sessionCard.click();
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
 
-        await page.evaluate(() => {
-            const sel = document.querySelector('select[id^="manual-reg-ben-"]') as HTMLSelectElement;
-            if (sel) {
-                const op = document.createElement('option');
-                op.value = '9999';
-                op.text = 'Test User';
-                sel.appendChild(op);
-            }
-        });
-
         let registrationCalled = false;
         await page.route('**/api/registrations', async route => {
             registrationCalled = true;
             await route.fulfill({ status: 201, json: {} });
         });
 
-        const benSelect = page.locator('select[id^="manual-reg-ben-"]');
-        const optionCount = await benSelect.locator('option').count();
-        if (optionCount > 1) {
-            const value = await benSelect.locator('option').nth(1).getAttribute('value');
-            if (value) {
-                await benSelect.selectOption(value);
-                await page.click('button:has-text("GO")');
-            }
-        }
+        const benControl = page.locator('[class*="rs__control"]').first();
+        await benControl.click();
+        const firstBenOption = page.locator('[class*="rs__option"]').first();
+        await expect(firstBenOption).toBeVisible({ timeout: 5000 });
+        await firstBenOption.click();
+
+        await page.getByRole('button', { name: 'GO' }).first().click();
+        await page.waitForTimeout(300);
+
         expect(registrationCalled).toBeTruthy();
+    });
+
+    test('admin inscrit plusieurs bénéficiaires en une fois (sélection multiple)', async ({ page }) => {
+        const now = new Date();
+        const session = {
+            id: 55501,
+            type: 'activity',
+            activity_id: 1,
+            start_time: now.toISOString(),
+            end_time: new Date(now.getTime() + 3600_000).toISOString(),
+            title: 'Multi Benef Admin',
+            status: 'approved',
+            participants: [],
+        };
+        const mockUsers = [
+            { id: 101, email: 'alice@test.fr', lastname: 'Alpha', firstname: 'Alice', role: 'beneficiary', dob: '2010-01-01', address: '1 Rue' },
+            { id: 102, email: 'bob@test.fr',   lastname: 'Beta',  firstname: 'Bob',   role: 'beneficiary', dob: '2010-01-01', address: '2 Rue' },
+        ];
+
+        await page.route('**/api/sessions', route => route.fulfill({
+            status: 200, contentType: 'application/json', body: JSON.stringify([session]),
+        }));
+        await page.route('**/api/users', route => route.fulfill({
+            status: 200, contentType: 'application/json', body: JSON.stringify(mockUsers),
+        }));
+
+        await loginAsAdmin(page);
+        await page.click('text=Multi Benef Admin');
+        await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
+
+        const registeredUserIds: number[] = [];
+        await page.route('**/api/registrations', async route => {
+            if (route.request().method() === 'POST') {
+                const body = JSON.parse(route.request().postData() || '{}');
+                registeredUserIds.push(body.user_id);
+                await route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+            } else {
+                await route.continue();
+            }
+        });
+
+        const benControl = page.locator('[class*="rs__control"]').first();
+        await benControl.click();
+
+        const aliceOption = page.locator('[class*="rs__option"]', { hasText: 'Alice Alpha' });
+        await expect(aliceOption).toBeVisible({ timeout: 5000 });
+        await aliceOption.click();
+
+        const bobOption = page.locator('[class*="rs__option"]', { hasText: 'Bob Beta' });
+        await expect(bobOption).toBeVisible({ timeout: 3000 });
+        await bobOption.click();
+
+        await expect(page.locator('[class*="rs__multi-value"]')).toHaveCount(2);
+
+        await page.getByRole('button', { name: 'GO' }).first().click();
+        await page.waitForTimeout(400);
+
+        expect(registeredUserIds).toHaveLength(2);
+        expect(registeredUserIds).toContain(101);
+        expect(registeredUserIds).toContain(102);
+    });
+
+    test('admin inscrit manuellement un bénévole', async ({ page }) => {
+        let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        if (!await sessionCard.isVisible().catch(() => false)) {
+            sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
+        }
+        await expect(sessionCard).toBeVisible({ timeout: 15000 });
+        await sessionCard.click();
+        await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
+
+        let call = false;
+        await page.route('**/api/registrations', async route => {
+            call = true;
+            await route.fulfill({ status: 201, json: {} });
+        });
+
+        const volControl = page.locator('[class*="rs__control"]').nth(1);
+        await volControl.click();
+        const firstVolOption = page.locator('[class*="rs__option"]').first();
+        if (await firstVolOption.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await firstVolOption.click();
+            await page.getByRole('button', { name: 'GO' }).nth(1).click();
+            await page.waitForTimeout(300);
+            if (call) expect(call).toBeTruthy();
+        }
     });
 
     test('admin peut supprimer la session depuis la modale', async ({ page }) => {
@@ -324,92 +393,7 @@ test.describe('SessionModal - Administrateur', () => {
         await expect(deleteCalled).toBeTruthy();
     });
 
-    test('activité avec image/description se montre correctement', async ({ page }) => {
-        const now = new Date();
-        const later = new Date(now.getTime() + 3600_000);
-        const session = {
-            id: 5555,
-            type: 'activity',
-            activity_id: 123,
-            start_time: now.toISOString(),
-            end_time: later.toISOString(),
-            title: 'Super Image',
-            image_url: 'https://example.com/pic.jpg',
-            description: 'Description test',
-            deadline: new Date(now.getTime() + 86400_000).toISOString(),
-            max_participants: 42,
-            status: 'approved',
-            participants: [],
-        };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsBeneficiary(page);
-        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
-        await expect(sessionCard).toBeVisible({ timeout:15000 });
-        await sessionCard.click();
-
-        await expect(page.getByRole('img', { name: 'Super Image' })).toBeVisible();
-        await expect(page.locator('text=Description test')).toBeVisible();
-    });
-
-    test('réservation de local affiche utilisateur réservé', async ({ page }) => {
-        const now = new Date();
-        const session = {
-            id: 6666,
-            type: 'room_booking',
-            activity_id: null,
-            start_time: now.toISOString(),
-            end_time: now.toISOString(),
-            participants: [{ user_id: 7, role_at_registration: 'volunteer', firstname:'Max', lastname:'Payne', role:'volunteer' }],
-        };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsBeneficiary(page);
-        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
-        await expect(sessionCard).toBeVisible();
-        await sessionCard.click();
-        await expect(page.getByRole('heading', { name: 'Réservé par' })).toBeVisible();
-        await expect(page.locator('text=Max Payne')).toBeVisible();
-    });
-
-    test('civic service voit contrôles manuels', async ({ page }) => {
-        const now = new Date();
-        const session = { id: 7777, type:'activity', activity_id:1, start_time:now.toISOString(), end_time:now.toISOString(), title:'Civic test', status:'approved', participants:[] };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsCivic(page);
-        await page.click('text=Civic test');
-        await expect(page.locator('select[id^="manual-reg-ben-"]')).toBeVisible();
-        await expect(page.locator('select[id^="manual-reg-vol-"]')).toBeVisible();
-    });
-
-    test('liste des participants affiche noms', async ({ page }) => {
-        const now = new Date();
-        const session = { id: 8888, type:'activity', activity_id:1, start_time:now.toISOString(), end_time:now.toISOString(), title:'Partic Test', status:'approved', participants:[{user_id:2,role_at_registration:'beneficiary',firstname:'Jean',lastname:'Dupont',role:'beneficiary'}] };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsBeneficiary(page);
-        await page.click('text=Partic Test');
-        await expect(page.locator('text=Jean Dupont')).toBeVisible();
-    });
-
-    test('session aide aux devoirs affiche titre adapté', async ({ page }) => {
-        const now = new Date();
-        const session = { id: 9999, type:'homework_help', activity_id:null, start_time:now.toISOString(), end_time:now.toISOString(), participants:[] };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsBeneficiary(page);
-        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
-        await expect(sessionCard).toBeVisible();
-        await sessionCard.click();
-        await expect(page.getByRole('heading', { name: 'Aide aux devoirs' }).nth(1)).toBeVisible();
-    });
-
-    test('admin voit bouton approuver sur atelier en attente', async ({ page }) => {
-        const now = new Date();
-        const session = { id: 10101, type:'activity', activity_id:1, start_time:now.toISOString(), end_time:now.toISOString(), title:'Pending Act', status:'pending', participants:[] };
-        await page.route('**/api/sessions', route => route.fulfill({ status:200, contentType:'application/json', body: JSON.stringify([session]) }));
-        await loginAsAdmin(page);
-        await page.click('text=Pending Act');
-        await expect(page.getByRole('button', { name: /Approuver l'atelier/i })).toBeVisible();
-    });
-
-    test('admin inscrit manuellement un bénévole', async ({ page }) => {
+    test('admin peut retirer un participant via poubelle', async ({ page }) => {
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
@@ -418,15 +402,201 @@ test.describe('SessionModal - Administrateur', () => {
         await sessionCard.click();
         await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
 
-        await page.evaluate(() => {
-            const sel = document.querySelector('select[id^="manual-reg-vol-"]') as HTMLSelectElement;
-            if (sel) {
-                const op = document.createElement('option');
-                op.value = '8888';
-                op.text = 'Fake Vol';
-                sel.appendChild(op);
+        const trashBtn = page.locator('button[title="Retirer"]').first();
+        if (await trashBtn.count() > 0) {
+            let removed = false;
+            await page.route('**/api/registrations*', async route => {
+                if (route.request().method() === 'DELETE') {
+                    removed = true;
+                    await route.fulfill({ status: 200, json: {} });
+                } else {
+                    await route.continue();
+                }
+            });
+            await trashBtn.click();
+            expect(removed).toBeTruthy();
+        }
+    });
+
+    test('admin voit bouton approuver sur atelier en attente', async ({ page }) => {
+        const now = new Date();
+        const session = { id: 10101, type: 'activity', activity_id: 1, start_time: now.toISOString(), end_time: now.toISOString(), title: 'Pending Act', status: 'pending', participants: [] };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsAdmin(page);
+        await page.click('text=Pending Act');
+        await expect(page.getByRole('button', { name: /Approuver l'atelier/i })).toBeVisible();
+    });
+
+    test('activité avec image/description se montre correctement', async ({ page }) => {
+        const now = new Date();
+        const session = {
+            id: 5555, type: 'activity', activity_id: 123,
+            start_time: now.toISOString(), end_time: new Date(now.getTime() + 3600_000).toISOString(),
+            title: 'Super Image', image_url: 'https://example.com/pic.jpg', description: 'Description test',
+            deadline: new Date(now.getTime() + 86400_000).toISOString(), max_participants: 42,
+            status: 'approved', participants: [],
+        };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsBeneficiary(page);
+        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        await expect(sessionCard).toBeVisible({ timeout: 15000 });
+        await sessionCard.click();
+        await expect(page.getByRole('img', { name: 'Super Image' })).toBeVisible();
+        await expect(page.locator('text=Description test')).toBeVisible();
+    });
+
+    test('réservation de local affiche utilisateur réservé', async ({ page }) => {
+        const now = new Date();
+        const session = {
+            id: 6666, type: 'room_booking', activity_id: null,
+            start_time: now.toISOString(), end_time: now.toISOString(),
+            participants: [{ user_id: 7, role_at_registration: 'volunteer', firstname: 'Max', lastname: 'Payne', role: 'volunteer' }],
+        };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsBeneficiary(page);
+        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        await expect(sessionCard).toBeVisible();
+        await sessionCard.click();
+        await expect(page.getByRole('heading', { name: 'Réservé par' })).toBeVisible();
+        await expect(page.locator('text=Max Payne')).toBeVisible();
+    });
+
+    test('liste des participants affiche noms', async ({ page }) => {
+        const now = new Date();
+        const session = { id: 8888, type: 'activity', activity_id: 1, start_time: now.toISOString(), end_time: now.toISOString(), title: 'Partic Test', status: 'approved', participants: [{ user_id: 2, role_at_registration: 'beneficiary', firstname: 'Jean', lastname: 'Dupont', role: 'beneficiary' }] };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsBeneficiary(page);
+        await page.click('text=Partic Test');
+        await expect(page.locator('text=Jean Dupont')).toBeVisible();
+    });
+
+    test('session aide aux devoirs affiche titre adapté', async ({ page }) => {
+        const now = new Date();
+        const session = { id: 9999, type: 'homework_help', activity_id: null, start_time: now.toISOString(), end_time: now.toISOString(), participants: [] };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsBeneficiary(page);
+        const sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        await expect(sessionCard).toBeVisible();
+        await sessionCard.click();
+        await expect(page.getByRole('heading', { name: 'Aide aux devoirs' }).nth(1)).toBeVisible();
+    });
+});
+
+// ----------------------------------------------------------
+// Tests pour service civique
+// ----------------------------------------------------------
+
+test.describe('SessionModal - Service Civique', () => {
+    test.beforeEach(async ({ page }) => {
+        await loginAsCivic(page);
+        await expect(page.locator('h2', { hasText: 'Planning' })).toBeVisible();
+    });
+
+    test('voit les contrôles manuels (sélection bénéficiaires et bénévoles)', async ({ page }) => {
+        const now = new Date();
+        const session = { id: 7777, type: 'activity', activity_id: 1, start_time: now.toISOString(), end_time: now.toISOString(), title: 'Civic test', status: 'approved', participants: [] };
+        await page.route('**/api/sessions', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }));
+        await loginAsCivic(page);
+        await page.click('text=Civic test');
+        await expect(page.locator('[class*="rs__control"]').first()).toBeVisible();
+        await expect(page.locator('[class*="rs__control"]').nth(1)).toBeVisible();
+    });
+
+    test('inscrit manuellement un bénéficiaire (POST intercept)', async ({ page }) => {
+        let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        if (!await sessionCard.isVisible().catch(() => false)) {
+            sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
+        }
+        await expect(sessionCard).toBeVisible({ timeout: 15000 });
+        await sessionCard.click();
+        await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
+
+        let registrationCalled = false;
+        await page.route('**/api/registrations', async route => {
+            registrationCalled = true;
+            await route.fulfill({ status: 201, json: {} });
+        });
+
+        const benControl = page.locator('[class*="rs__control"]').first();
+        await benControl.click();
+        const firstBenOption = page.locator('[class*="rs__option"]').first();
+        await expect(firstBenOption).toBeVisible({ timeout: 5000 });
+        await firstBenOption.click();
+
+        await page.getByRole('button', { name: 'GO' }).first().click();
+        await page.waitForTimeout(300);
+
+        expect(registrationCalled).toBeTruthy();
+    });
+
+    test('inscrit plusieurs bénéficiaires en une fois (sélection multiple)', async ({ page }) => {
+        const now = new Date();
+        const session = {
+            id: 55502,
+            type: 'activity',
+            activity_id: 1,
+            start_time: now.toISOString(),
+            end_time: new Date(now.getTime() + 3600_000).toISOString(),
+            title: 'Multi Benef Civic',
+            status: 'approved',
+            participants: [],
+        };
+        const mockUsers = [
+            { id: 201, email: 'alice2@test.fr', lastname: 'Alpha', firstname: 'Alice', role: 'beneficiary', dob: '2010-01-01', address: '1 Rue' },
+            { id: 202, email: 'bob2@test.fr',   lastname: 'Beta',  firstname: 'Bob',   role: 'beneficiary', dob: '2010-01-01', address: '2 Rue' },
+        ];
+
+        await page.route('**/api/sessions', route => route.fulfill({
+            status: 200, contentType: 'application/json', body: JSON.stringify([session]),
+        }));
+        await page.route('**/api/users', route => route.fulfill({
+            status: 200, contentType: 'application/json', body: JSON.stringify(mockUsers),
+        }));
+
+        await loginAsCivic(page);
+        await page.click('text=Multi Benef Civic');
+        await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
+
+        const registeredUserIds: number[] = [];
+        await page.route('**/api/registrations', async route => {
+            if (route.request().method() === 'POST') {
+                const body = JSON.parse(route.request().postData() || '{}');
+                registeredUserIds.push(body.user_id);
+                await route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+            } else {
+                await route.continue();
             }
         });
+
+        const benControl = page.locator('[class*="rs__control"]').first();
+        await benControl.click();
+
+        const aliceOption = page.locator('[class*="rs__option"]', { hasText: 'Alice Alpha' });
+        await expect(aliceOption).toBeVisible({ timeout: 5000 });
+        await aliceOption.click();
+
+        const bobOption = page.locator('[class*="rs__option"]', { hasText: 'Bob Beta' });
+        await expect(bobOption).toBeVisible({ timeout: 3000 });
+        await bobOption.click();
+
+        await expect(page.locator('[class*="rs__multi-value"]')).toHaveCount(2);
+
+        await page.getByRole('button', { name: 'GO' }).first().click();
+        await page.waitForTimeout(400);
+
+        expect(registeredUserIds).toHaveLength(2);
+        expect(registeredUserIds).toContain(201);
+        expect(registeredUserIds).toContain(202);
+    });
+
+    test('inscrit manuellement un bénévole', async ({ page }) => {
+        let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
+        if (!await sessionCard.isVisible().catch(() => false)) {
+            sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
+        }
+        await expect(sessionCard).toBeVisible({ timeout: 15000 });
+        await sessionCard.click();
+        await expect(page.locator('div.fixed.inset-0 h3')).toBeVisible();
 
         let call = false;
         await page.route('**/api/registrations', async route => {
@@ -434,21 +604,18 @@ test.describe('SessionModal - Administrateur', () => {
             await route.fulfill({ status: 201, json: {} });
         });
 
-        const volSel = page.locator('select[id^="manual-reg-vol-"]');
-        if (await volSel.count() > 0) {
-            const count = await volSel.locator('option').count();
-            if (count > 1) {
-                const val = await volSel.locator('option').nth(1).getAttribute('value');
-                if (val) {
-                    await volSel.selectOption(val);
-                    await page.click('button:has-text("GO")');
-                }
-            }
+        const volControl = page.locator('[class*="rs__control"]').nth(1);
+        await volControl.click();
+        const firstVolOption = page.locator('[class*="rs__option"]').first();
+        if (await firstVolOption.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await firstVolOption.click();
+            await page.getByRole('button', { name: 'GO' }).nth(1).click();
+            await page.waitForTimeout(300);
+            if (call) expect(call).toBeTruthy();
         }
-        if (call) expect(call).toBeTruthy();
     });
 
-    test('admin peut retirer un participant via poubelle', async ({ page }) => {
+    test('peut retirer un participant via poubelle', async ({ page }) => {
         let sessionCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden').first();
         if (!await sessionCard.isVisible().catch(() => false)) {
             sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();

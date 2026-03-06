@@ -1,8 +1,41 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, Mock, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import SessionModal from '../modals/SessionModal';
 import { User, Session } from '../../../types';
 import '@testing-library/jest-dom';
+
+vi.mock('react-select', () => ({
+    default: ({ options, onChange, placeholder, isMulti }: any) => (
+        <select
+            multiple={!!isMulti}
+            data-testid={`react-select-${placeholder}`}
+            onChange={(e) => {
+                if (!onChange) return;
+                if (isMulti) {
+                    const vals = Array.from(
+                        (e.target as HTMLSelectElement).selectedOptions
+                    ).map((o) => o.value);
+                    if (vals.length > 0) {
+                        onChange((options || []).filter((o: any) => vals.includes(String(o.value))));
+                    } else {
+                        const val = (e.target as HTMLSelectElement).value;
+                        const opt = val ? (options || []).find((o: any) => String(o.value) === val) : null;
+                        onChange(opt ? [opt] : []);
+                    }
+                } else {
+                    const opt = (options || []).find((o: any) => String(o.value) === (e.target as HTMLSelectElement).value);
+                    onChange(opt || null);
+                }
+            }}
+        >
+            <option value="">{placeholder}</option>
+            {(options || []).map((opt: any) => (
+                <option key={opt.value} value={String(opt.value)}>{opt.label}</option>
+            ))}
+        </select>
+    ),
+}));
 
 // --- 1. DONNÉES DE TEST (MOCKS) ---
 
@@ -55,11 +88,11 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         });
     });
 
-    it('devrait permettre à un admin d’inscrire un bénéficiaire via le menu déroulant', async () => {
+    it('devrait permettre à un admin d\'inscrire un bénéficiaire via le menu déroulant', async () => {
         const onFetchSessionsMock = vi.fn();
         render(<SessionModal user={mockAdmin} selectedSession={mockSession} allUsers={[mockBeneficiary]} onFetchSessions={onFetchSessionsMock} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        const select = document.getElementById(`manual-reg-ben-${mockSession.id}`) as HTMLSelectElement;
-        fireEvent.change(select, { target: { value: '1' } });
+        const benSelect = screen.getByTestId('react-select-+ Jeune');
+        fireEvent.change(benSelect, { target: { value: mockBeneficiary.id.toString() } });
         fireEvent.click(screen.getAllByText('GO')[0]);
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
         expect(onFetchSessionsMock).toHaveBeenCalled();
@@ -165,6 +198,49 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         const sessionWithOtherUser = { ...mockSession, participants: [{ user_id: 999, firstname: 'Autre', lastname: 'User', role: 'beneficiary', role_at_registration: 'beneficiary' }] };
         render(<SessionModal user={mockBeneficiary} selectedSession={sessionWithOtherUser as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
         expect(screen.queryByRole('button', { name: /Retirer/i })).not.toBeInTheDocument();
+    });
+
+    it('devrait inscrire plusieurs bénéficiaires en une seule fois (sélection multiple)', async () => {
+        const mockBeneficiary2: User = {
+            id: 2, role: 'beneficiary', firstname: 'Marie', lastname: 'Curie',
+            email: 'marie@test.com', dob: '2010-01-01', address: '5 Rue Marie',
+        };
+        const onFetchSessionsMock = vi.fn();
+        const showSuccessMock = vi.fn();
+        (global.fetch as Mock).mockResolvedValue({ ok: true });
+
+        render(<SessionModal
+            user={mockAdmin}
+            selectedSession={mockSession}
+            allUsers={[mockBeneficiary, mockBeneficiary2]}
+            onFetchSessions={onFetchSessionsMock}
+            showSuccess={showSuccessMock}
+            onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()}
+        />);
+
+        // Sélectionner deux bénéficiaires dans le menu déroulant multi-sélection
+        const benSelect = screen.getByTestId('react-select-+ Jeune');
+        await userEvent.selectOptions(benSelect, [
+            mockBeneficiary.id.toString(),
+            mockBeneficiary2.id.toString(),
+        ]);
+
+        fireEvent.click(screen.getAllByText('GO')[0]);
+
+        await waitFor(() => {
+            // Un appel fetch par bénéficiaire sélectionné
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+            expect(global.fetch).toHaveBeenCalledWith('/api/registrations', expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining(`"user_id":${mockBeneficiary.id}`),
+            }));
+            expect(global.fetch).toHaveBeenCalledWith('/api/registrations', expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining(`"user_id":${mockBeneficiary2.id}`),
+            }));
+            expect(onFetchSessionsMock).toHaveBeenCalled();
+            expect(showSuccessMock).toHaveBeenCalledWith('2 jeune(s) inscrit(s) !');
+        });
     });
 
     /* --- TESTS EN ATTENTE DE CORRECTION (BUGS DÉTECTÉS) ---
