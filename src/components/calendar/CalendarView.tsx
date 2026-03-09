@@ -86,6 +86,9 @@ const CalendarView = ({ user }: CalendarViewProps) => {
             }
         });
 
+        // Ajout du timestamp pour forcer le rechargement du logo à chaque impression
+        const logoUrlWithCacheBust = `/logo.jpg?t=${new Date().getTime()}`;
+
         const html = `
 <!DOCTYPE html>
 <html>
@@ -99,8 +102,15 @@ const CalendarView = ({ user }: CalendarViewProps) => {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             padding: 40px 30px; background: white; margin: 0;
         }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 20px; }
         .logo { font-size: 24px; font-weight: bold; color: #1f2937; }
+        .logo-image { 
+            height: 80px; 
+            width: 80px; 
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
         .title-section { text-align: center; flex: 1; }
         h1 { 
             font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 15px; 
@@ -168,7 +178,7 @@ const CalendarView = ({ user }: CalendarViewProps) => {
 </head>
 <body>
     <div class="header">
-        <div class="logo">Quera Fablab</div>
+        <img src="${logoUrlWithCacheBust}" alt="Logo" class="logo-image">
         <div class="title-section">
             <h1>PLANNING DE LA SEMAINE</h1>
             <div class="dates">Du ${weekFormatted}</div>
@@ -202,8 +212,13 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     </div>
 
     <script>
-        window.print();
-        window.close();
+        // On attend que toutes les ressources (image incluse) soient chargées
+        window.onload = function() {
+            setTimeout(() => {
+                window.print();
+                window.close();
+            }, 300);
+        };
     </script>
 </body>
 </html>
