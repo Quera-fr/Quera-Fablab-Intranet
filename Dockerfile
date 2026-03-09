@@ -26,4 +26,8 @@ EXPOSE 5173
 
 # Start the Node.js server to serve API and static files
 # We use a tool like tsx since server.ts is written in TypeScript
+<<<<<<< HEAD
 CMD ["npx", "tsx", "server.ts", "playwright", "test"]
+=======
+CMD ["npx", "tsx", "server.ts", "playwright, test"]
+>>>>>>> test-unitaires-prativa

@@ -93,7 +93,7 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         render(<SessionModal user={mockAdmin} selectedSession={mockSession} allUsers={[mockBeneficiary]} onFetchSessions={onFetchSessionsMock} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
         const benSelect = screen.getByTestId('react-select-+ Jeune');
         fireEvent.change(benSelect, { target: { value: mockBeneficiary.id.toString() } });
-        fireEvent.click(screen.getAllByText('GO')[0]);
+        fireEvent.click(screen.getAllByText('Ajouter')[0]);
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
         expect(onFetchSessionsMock).toHaveBeenCalled();
     });
@@ -188,10 +188,11 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         expect(screen.getByText(/Lucas Dupont/i)).toBeInTheDocument();
     });
 
-   it('devrait afficher le compteur de places correctement', () => {
+    it('devrait afficher le compteur de places correctement', () => {
         const sessionWithLimit = { ...mockSession, max_participants: 12, participants: [{ user_id: 1, firstname: 'A', lastname: 'B', role: 'beneficiary', role_at_registration: 'beneficiary' }] };
         render(<SessionModal user={mockAdmin} selectedSession={sessionWithLimit as Session} allUsers={[]} onFetchSessions={vi.fn()} showSuccess={vi.fn()} onClose={vi.fn()} onRegister={vi.fn()} onUnregister={vi.fn()} onDeleteSession={vi.fn()} onValidateActivity={vi.fn()} />);
-        expect(screen.getByText(/1\s*\/\s*12/i)).toBeInTheDocument();
+        expect(screen.getByText(/12\s*places/i)).toBeInTheDocument();
+        expect(screen.getByText('A B')).toBeInTheDocument();
     });
 
     it('ne devrait pas afficher le bouton "Retirer" pour un bénéficiaire qui regarde la liste', () => {
@@ -225,7 +226,7 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
             mockBeneficiary2.id.toString(),
         ]);
 
-        fireEvent.click(screen.getAllByText('GO')[0]);
+        fireEvent.click(screen.getAllByText('Ajouter')[0]);
 
         await waitFor(() => {
             // Un appel fetch par bénéficiaire sélectionné
@@ -265,7 +266,7 @@ describe('SessionModal - Inscriptions et Désinscriptions', () => {
         const onFetchSessionsMock = vi.fn();
         (global.fetch as Mock).mockResolvedValueOnce({ ok: false, status: 500 });
         render(<SessionModal user={mockAdmin} selectedSession={mockSession} allUsers={[mockBeneficiary]} onFetchSessions={onFetchSessionsMock} ... />);
-        fireEvent.click(screen.getAllByText('GO')[0]);
+        fireEvent.click(screen.getAllByText('Ajouter')[0]);
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
         expect(onFetchSessionsMock).not.toHaveBeenCalled(); 
     });

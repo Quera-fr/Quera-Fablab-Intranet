@@ -261,7 +261,7 @@ const SessionModal = ({
                           }}
                           className="bg-black dark:bg-zinc-700 text-white px-3 py-1 rounded-full text-[10px] font-black hover:bg-zinc-800 shrink-0"
                         >
-                          GO
+                        Ajouter
                         </button>
                       </div>
 
@@ -351,7 +351,7 @@ const SessionModal = ({
                           }}
                           className="bg-black dark:bg-zinc-700 text-white px-3 py-1 rounded-full text-[10px] font-black hover:bg-zinc-800 shrink-0"
                         >
-                          GO
+                          Ajouter
                         </button>
                       </div>
                     </div>
