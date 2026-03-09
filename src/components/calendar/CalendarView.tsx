@@ -55,63 +55,25 @@ const CalendarView = ({ user }: CalendarViewProps) => {
         setTimeout(() => setSuccessMessage(null), 3000);
     };
 
-    const handlePrintWeeklyPlan = () => {
-        const weekStart = daysInWeek[0];
-        const weekEnd = daysInWeek[6];
-         const allParticipants: any[] = [];
-        sessions.forEach(s => {
-            if (s.participants) {
-                s.participants.forEach(p => {
-                    allParticipants.push({
-                        firstname: p.firstname,
-                        lastname: p.lastname,
-                        role: p.role,
-                        sessionType: s.type,
-                        sessionTitle: s.title || ROW_LABELS[s.type as keyof typeof ROW_LABELS]
-                    });
-                });
-            }
-        });
-        const today = new Date().toLocaleDateString('fr-FR');
+const handlePrintWeeklyPlan = () => {
+    const weekStart = daysInWeek[0];
+    const weekEnd = daysInWeek[6];
+    
+    // Filtrage strict : la semaine en cours ET seulement le type 'homework_help'
+    const weekSessions = sessions.filter(s => {
+        const sessionDate = new Date(s.start_time);
+        return (
+            sessionDate >= weekStart && 
+            sessionDate <= weekEnd && 
+            s.type === 'homework_help'
+        );
+    });
 
-        // Group by role
-        const grouped = {
-            beneficiary: allParticipants.filter(p => p.role === 'beneficiary'),
-            volunteer: allParticipants.filter(p => p.role === 'volunteer'),
-            civic_service: allParticipants.filter(p => p.role === 'civic_service')
-        };
+    const weekFormatted = `${weekStart.toLocaleDateString('fr-FR')} - ${weekEnd.toLocaleDateString('fr-FR')}`;
+    const dayNames = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI'];
+    const logoUrlWithCacheBust = `/logo.jpg?t=${new Date().getTime()}`;
 
-        // Remove duplicates by full name
-        const deduped = {
-            beneficiary: Array.from(new Map(grouped.beneficiary.map(p => [`${p.firstname} ${p.lastname}`, p])).values()),
-            volunteer: Array.from(new Map(grouped.volunteer.map(p => [`${p.firstname} ${p.lastname}`, p])).values()),
-            civic_service: Array.from(new Map(grouped.civic_service.map(p => [`${p.firstname} ${p.lastname}`, p])).values())
-        };
-        
-        // Filter sessions for this week
-        const weekSessions = sessions.filter(s => {
-            const sessionDate = new Date(s.start_time);
-            return sessionDate >= weekStart && sessionDate <= weekEnd;
-        });
-
-        const weekFormatted = `${weekStart.toLocaleDateString('fr-FR')} - ${weekEnd.toLocaleDateString('fr-FR')}`;
-        const dayNames = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI'];
-        
-        // Group sessions by day
-        const sessionsByDay: any = {
-            0: [], 1: [], 2: [], 3: [], 4: []
-        };
-        weekSessions.forEach(s => {
-            const dayIndex = new Date(s.start_time).getDay();
-            if (dayIndex >= 1 && dayIndex <= 5) {
-                sessionsByDay[dayIndex - 1].push(s);
-            }
-        });
-
-        // Ajout du timestamp pour forcer le rechargement du logo à chaque impression
-        const logoUrlWithCacheBust = `/logo.jpg?t=${new Date().getTime()}`;
-
-        const html = `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -170,21 +132,14 @@ const CalendarView = ({ user }: CalendarViewProps) => {
 
         @media print {
             @page { 
-        size: landscape; 
-        margin: 0; 
-    }
-
-    body { 
-        /* On réintroduit la marge à l'intérieur du body pour que 
-           le contenu ne soit pas collé au bord de la feuille */
-        padding: 1.5cm; 
-        margin: 0;
-    }
-
-    header, footer { display: none !important; }
-}
-            html { margin: 0; padding: 0; }
-            body { padding: 30px; margin: 0; }
+                size: landscape; 
+                margin: 0; 
+            }
+            body { 
+                padding: 1.5cm; 
+                margin: 0;
+            }
+            header, footer { display: none !important; }
         }
     </style>
 </head>
@@ -194,17 +149,13 @@ const CalendarView = ({ user }: CalendarViewProps) => {
         <div class="title-section">
             <h1>FICHE DE PRÉSENCE DE LA SEMAINE</h1>
             <h2 class="dates">DU ${weekFormatted}</h2>
-
-            
         </div>
     </div>
 
     <div class="grid">
         ${dayNames.map((dayName, index) => {
-            // 1. On isole les sessions qui ont lieu CE jour précis (index 0 = Lundi = getDay 1)
             const sessionsDuJour = weekSessions.filter(s => new Date(s.start_time).getDay() === index + 1);
             
-            // 2. On récupère uniquement les bénéficiaires de CES sessions là
             const beneficiairesDuJour: any[] = [];
             sessionsDuJour.forEach(s => {
                 if (s.participants) {
@@ -216,19 +167,16 @@ const CalendarView = ({ user }: CalendarViewProps) => {
                 }
             });
 
-            // 3. On retire les doublons pour ce jour (si un enfant fait 2 sessions le même jour)
             const uniqueBeneficiaires = Array.from(new Map(beneficiairesDuJour.map(p => [`${p.firstname} ${p.lastname}`, p])).values());
 
-            // 4. On retourne le HTML avec la liste filtrée
             return `
                 <div class="day-column">
                     <div class="day-header">${dayName}</div>
                     <div class="participant-list">
                         ${uniqueBeneficiaires.length > 0 
-                            ? uniqueBeneficiaires.map((p, i) => `
+                            ? uniqueBeneficiaires.map(p => `
                                 <div class="participant-item">
                                     <span class="participant-name">${p.firstname} ${p.lastname}</span>
-                                    <div class="participant-check"></div>
                                 </div>
                             `).join('')
                             : '<div class="empty">Aucun bénéficiaire</div>'
@@ -240,7 +188,6 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     </div>
 
     <script>
-        
         window.onload = function() {
             setTimeout(() => {
                 window.print();
@@ -252,15 +199,14 @@ const CalendarView = ({ user }: CalendarViewProps) => {
 </html>
         `;
 
-        const printWindow = window.open('', '', 'height=800,width=1000');
-        if (printWindow) {
-            printWindow.document.write(html);
-            printWindow.document.close();
-        }
-        setShowPrintMenu(false);
-    };
+    const printWindow = window.open('', '', 'height=800,width=1000');
+    if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+    }
+    setShowPrintMenu(false);
+};
 
-    // CARTES SESSION
 
     const formatSessionCard = (s: Session) => {
         const date = new Date(s.start_time).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
