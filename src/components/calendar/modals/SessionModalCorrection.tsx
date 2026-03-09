@@ -125,7 +125,7 @@ const SessionModal: React.FC<SessionModalProps> = ({
                                 <option value="">Inscrire un bénéficiaire...</option>
                                 {allUsers.map(u => <option key={u.id} value={u.id}>{u.firstname} {u.lastname}</option>)}
                             </select>
-                            <button onClick={() => handleManualRegister(1 /* id du state */)} className="font-bold">GO</button>
+                            <button onClick={() => handleManualRegister(1 /* id du state */)} className="font-bold">Ajouter</button>
                         </div>
                     )}
                     

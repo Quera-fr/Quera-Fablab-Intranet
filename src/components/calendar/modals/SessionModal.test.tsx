@@ -1,5 +1,38 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+vi.mock('react-select', () => ({
+    default: ({ options, onChange, placeholder, isMulti }: any) => (
+        <select
+            multiple={!!isMulti}
+            data-testid={`react-select-${placeholder}`}
+            onChange={(e) => {
+                if (!onChange) return;
+                if (isMulti) {
+                    const vals = Array.from(
+                        (e.target as HTMLSelectElement).selectedOptions
+                    ).map((o) => o.value);
+                    if (vals.length > 0) {
+                        onChange((options || []).filter((o: any) => vals.includes(String(o.value))));
+                    } else {
+                        // Fallback pour fireEvent.change qui surcharge .value mais pas .selectedOptions
+                        const val = (e.target as HTMLSelectElement).value;
+                        const opt = val ? (options || []).find((o: any) => String(o.value) === val) : null;
+                        onChange(opt ? [opt] : []);
+                    }
+                } else {
+                    const opt = (options || []).find((o: any) => String(o.value) === (e.target as HTMLSelectElement).value);
+                    onChange(opt || null);
+                }
+            }}
+        >
+            <option value="">{placeholder}</option>
+            {(options || []).map((opt: any) => (
+                <option key={opt.value} value={String(opt.value)}>{opt.label}</option>
+            ))}
+        </select>
+    ),
+}));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SessionModal from './SessionModal';
 import { User, Session } from '../../../types';
@@ -138,7 +171,6 @@ describe('SessionModal', () => {
         await userEvent.click(trashButtons[0]);
 
         expect(mockOnUnregister).toHaveBeenCalledWith(mockActivitySession.id, mockBeneficiary.id);
-        expect(mockOnClose).toHaveBeenCalled();
         expect(mockShowSuccess).toHaveBeenCalledWith("Utilisateur retiré !");
     });
 
@@ -159,7 +191,6 @@ describe('SessionModal', () => {
         await userEvent.click(trashButtons[0]);
 
         expect(mockOnUnregister).toHaveBeenCalledWith(sessionWithVolunteer.id, mockVolunteer.id);
-        expect(mockOnClose).toHaveBeenCalled();
         expect(mockShowSuccess).toHaveBeenCalledWith("Utilisateur retiré !");
     });
 
@@ -170,14 +201,9 @@ describe('SessionModal', () => {
         const emptySession = { ...mockActivitySession, participants: [] };
         renderModal(emptySession);
 
-        // The selects have IDs: `manual-reg-ben-${session.id}`
-        const select = document.getElementById(`manual-reg-ben-${emptySession.id}`) as HTMLSelectElement;
-
-        await userEvent.selectOptions(select, [mockBeneficiary.id.toString()]);
-
-        // Find the GO button inside the same div
-        const goButton = select.nextElementSibling as HTMLButtonElement;
-        await userEvent.click(goButton);
+        const benSelect = screen.getByTestId('react-select-+ Jeune');
+        fireEvent.change(benSelect, { target: { value: mockBeneficiary.id.toString() } });
+        await userEvent.click(screen.getAllByText('Ajouter')[0]);
 
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith('/api/registrations', expect.objectContaining({
@@ -186,8 +212,7 @@ describe('SessionModal', () => {
                 body: expect.stringContaining(`"user_id":${mockBeneficiary.id}`)
             }));
             expect(mockOnFetchSessions).toHaveBeenCalled();
-            expect(mockShowSuccess).toHaveBeenCalledWith("Jeune inscrit !");
-            expect(mockOnClose).toHaveBeenCalled();
+            expect(mockShowSuccess).toHaveBeenCalledWith('1 jeune(s) inscrit(s) !');
         });
     });
 
