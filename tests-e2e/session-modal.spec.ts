@@ -937,3 +937,5 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
     await expect(page.locator("text=Bob Beta")).toBeVisible({ timeout: 5000 });
   });
 });
+
+// Test
