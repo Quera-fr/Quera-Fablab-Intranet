@@ -280,7 +280,7 @@ async function startServer() {
   // Sessions & Registrations API
   app.get("/api/sessions", (req, res) => {
     const sessions = db.prepare(`
-      SELECT s.*, a.title, a.description, a.status, a.max_participants
+      SELECT s.*, a.title, a.description, a.status, a.max_participants, a.image_url
       FROM sessions s
       LEFT JOIN activities a ON s.activity_id = a.id
     `).all();
