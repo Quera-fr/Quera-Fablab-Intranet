@@ -45,6 +45,15 @@ const SessionModal = ({
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  const formatDeadline = (deadline?: string) => {
+    if (!deadline) return ".. / .. / ....";
+    const date = new Date(deadline);
+    return Number.isNaN(date.getTime())
+      ? ".. / .. / ...."
+      : date.toLocaleDateString("fr-FR");
+  };
+  
   type SelectOption = { value: number; label: string };
 
   const [selectedBeneficiaries, setSelectedBeneficiaries] = useState<
@@ -157,10 +166,7 @@ const SessionModal = ({
                       size={18}
                       className="text-black dark:text-zinc-400"
                     />{" "}
-                    Fin:{" "}
-                    {new Date(
-                      selectedSession.deadline || "",
-                    ).toLocaleDateString("fr-FR")}
+                    Fin: {formatDeadline(selectedSession.deadline)}
                   </div>
                 </div>
               </div>
