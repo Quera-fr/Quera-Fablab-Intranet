@@ -24,17 +24,22 @@ Bienvenue sur le dépôt du projet **Intranet Quera-Fablab**. Cette application 
 Le serveur Express est configuré pour servir l'API backend **ET** le frontend React (via Vite en mode middleware). Il est donc indispensable de lancer l'application via le point d'entrée du serveur.
 
 ### 1. Installation des dépendances
+
 Assurez-vous d'avoir Node.js installé. À la racine du projet, exécutez :
+
 ```bash
 npm install
 ```
 
 ### 2. Démarrer le serveur (Frontend + Backend)
+
 Utilisez `tsx` (inclus dans les devDependencies) pour exécuter directement le serveur TypeScript :
+
 ```bash
 npx tsx server.ts
 ```
-*(Le serveur démarrera sur **http://localhost:3000**)*
+
+_(Le serveur démarrera sur **http://localhost:3000**)_
 
 ---
 
@@ -43,17 +48,21 @@ npx tsx server.ts
 Au démarrage du serveur, si la base de données est vide, un jeu de données de test est automatiquement généré.
 
 ### Administrateur :
+
 - **Email :** `admin@assoc.fr`
 - **Mot de passe :** `admin123`
 
 ### Utilisateurs de test (Bénévoles, Services Civiques, Bénéficiaires) :
+
 Les profils suivants sont générés (de 1 à 5). Par exemple :
+
 - **Bénévole :** `test_volunteer_1@assoc.fr`
 - **Service Civique :** `test_civic_service_1@assoc.fr`
 - **Bénéficiaire :** `test_beneficiary_1@assoc.fr`
 - **Mot de passe pour tous les tests :** `password123`
 
 ## 📂 Structure du projet
+
 - `server.ts` : Point d'entrée principal (Backend Express + Configuration de la base de données + Vite Middleware).
 - `/src` : Code source du Frontend (React, Composants, Pages).
 - `/public/uploads` : Dossier contenant les images uploadées (généré automatiquement).

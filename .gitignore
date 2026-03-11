@@ -2,3 +2,9 @@
 
 /playwright-report
 /test-results
+
+# Playwright
+node_modules/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

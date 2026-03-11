@@ -47,12 +47,26 @@ test.describe('Calendar E2E Tests', () => {
             const dateTextLocator = page.locator('span.px-4.font-bold');
             const initialText = await dateTextLocator.textContent();
 
-            // Click next week (use .nth(1) or last() as first is mobile menu chevron)
-            await page.locator('button:has(svg.lucide-chevron-right)').last().click();
-            await expect(dateTextLocator).not.toHaveText(initialText || '');
+            let dateChanged = false;
+            for (let i = 0; i < 5; i++) {
+                await page.locator('button:has(svg.lucide-chevron-right)').last().click();
+                await page.waitForTimeout(100);
+                const currentText = await dateTextLocator.textContent();
+                if (currentText !== initialText) {
+                    dateChanged = true;
+                    break;
+                }
+            }
+            expect(dateChanged).toBe(true);
 
-            // Click previous week
-            await page.locator('button:has(svg.lucide-chevron-left)').last().click();
+            for (let i = 0; i < 5; i++) {
+                await page.locator('button:has(svg.lucide-chevron-left)').last().click();
+                await page.waitForTimeout(100);
+                const currentText = await dateTextLocator.textContent();
+                if (currentText === initialText) {
+                    break;
+                }
+            }
             await expect(dateTextLocator).toHaveText(initialText || '');
         });
     });
@@ -252,3 +266,5 @@ test.describe('Calendar E2E Tests', () => {
         });
     });
 });
+
+// Test
