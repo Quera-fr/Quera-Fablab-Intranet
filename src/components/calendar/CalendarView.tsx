@@ -423,16 +423,16 @@ const handlePrintWeeklyPlan = () => {
     }
   };
 
-  const canDragSessions =
-    user.role === "admin" || user.role === "civic_service";
+    const canDragSessions =
+  user.role === "admin" || user.role === "civic_service";
 
-  const canManageRow = (rowType: string) => {
-    if (user.role === "admin") return true;
-    if (user.role === "civic_service")
-      return rowType === "homework_help" || rowType === "activity";
-    if (user.role === "adherent") return rowType === "room_booking";
-    return false;
-  };
+    const canManageRow = (rowType: string) => {
+      if (user.role === "admin") return true;
+      if (user.role === "civic_service")
+        return rowType === "homework_help" || rowType === "activity";
+      if (user.role === "adherent") return rowType === "room_booking";
+      return false;
+    };
 
   const openFormForRow = (rowType: string, date?: Date) => {
     if (!canManageRow(rowType)) return;
@@ -493,19 +493,19 @@ const handlePrintWeeklyPlan = () => {
             Planning
           </h2>
           <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
-            {(["week", "month", "year"] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${viewMode === mode ? "bg-white dark:bg-zinc-700 shadow-sm text-black dark:text-white" : "text-zinc-500"}`}
-              >
-                {mode === "week"
-                  ? "Semaine"
-                  : mode === "month"
-                    ? "Mois"
-                    : "Année"}
-              </button>
-            ))}
+          {(["week", "month", "year"] as const).map((mode) => (
+          <button
+         key={mode}
+         onClick={() => setViewMode(mode)}
+        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+          viewMode === mode
+           ? "bg-orange-500 text-white shadow-sm"
+             : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+          }`}
+            >
+          {mode === "week" ? "Semaine" : mode === "month" ? "Mois" : "Année"}
+          </button>
+        ))}
           </div>
           <div className="flex items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-1 shadow-sm">
             <button
@@ -553,35 +553,42 @@ const handlePrintWeeklyPlan = () => {
         </div>
 
         <div className="flex gap-2">
-          {(user.role === "admin" || user.role === "civic_service") && (
+        {(user.role === "admin" || user.role === "civic_service") && (
             <div className="relative">
-                        <button onClick={() => { handlePrintWeeklyPlan(); }} className="flex items-center gap-2 bg-zinc-500 dark:bg-zinc-600 text-white px-4 py-2 rounded-xl hover:bg-zinc-600 dark:hover:bg-zinc-500 transition-all font-bold text-xs uppercase tracking-widest shadow-lg">
-                            <Printer size={16} /> Imprimer
-                        </button>
-                    </div>
-          )}
-          {(user.role === "civic_service" || user.role === "admin") && (
             <button
-              onClick={() => setShowAddActivity(true)}
-              className="flex items-center gap-2 bg-black dark:bg-white dark:text-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all font-bold text-xs uppercase tracking-widest shadow-lg"
-            >
-              <Plus size={16} /> Nouvelle Activité
+              onClick={() => {
+              handlePrintWeeklyPlan();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-sm hover:bg-gray-50 transition-colors shadow-sm"
+                >
+              <Printer className="w-4 h-4" />
+                Imprimer
             </button>
+             </div>
+            )}
+          {(user.role === "civic_service" || user.role === "admin") && (
+          <button
+          onClick={() => setShowAddActivity(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500 text-white text-sm hover:bg-orange-600 transition-colors shadow-sm"
+            >
+          <Plus className="w-4 h-4" />
+           Nouvelle Activité
+         </button>
           )}
           {(user.role === "admin" || user.role === "civic_service") && (
-            <>
-              <button
-                onClick={handleBatchHomework}
-                className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-800 px-4 py-2 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-all font-bold text-xs uppercase tracking-widest shadow-lg"
-              >
-                <Plus size={16} /> Semaine Type
-              </button>
-              <button
-                onClick={() => setShowAddRoom(true)}
-                className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border border-amber-200 dark:border-amber-800 px-4 py-2 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-800/60 transition-all font-bold text-xs uppercase tracking-widest shadow-lg"
-              >
-                <Plus size={16} /> Résa. Local
-              </button>
+  <>
+    <button
+      onClick={handleBatchHomework}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-sm hover:bg-gray-50 transition-colors shadow-sm"
+    >
+      Semaine Type
+    </button>
+    <button
+      onClick={() => setShowAddRoom(true)}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-sm hover:bg-gray-50 transition-colors shadow-sm"
+    >
+      Résa. Local
+    </button>
               {isSelectionMode ? (
                 <>
                   <button

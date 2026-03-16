@@ -23,7 +23,9 @@ import MyRegistrationsView from './components/registrations/MyRegistrationsView'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'planning' | 'users' | 'my_registrations'>('planning');
+  const [activeTab, setActiveTab] = useState<
+  'planning' | 'civic_calendar' | 'users' | 'my_registrations'
+>('planning');
   const [showProfile, setShowProfile] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -76,31 +78,58 @@ export default function App() {
 
           <nav className={`flex flex-col gap-2 w-full ${isSidebarCollapsed ? 'items-center' : ''}`}>
             <button
-              onClick={() => setActiveTab('planning')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'planning' ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black' : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                onClick={() => setActiveTab('planning')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  activeTab === 'planning'
+                    ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black'
+                    : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                 } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
-              title="Planning"
+                title="Planning"
             >
-              <CalendarIcon size={18} className="shrink-0" /> {!isSidebarCollapsed && <span className="hidden md:inline">Planning</span>}
-            </button>
-            <button
-              onClick={() => setActiveTab('my_registrations')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'my_registrations' ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black' : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
-              title="Mes Inscriptions"
-            >
-              <List size={18} className="shrink-0" /> {!isSidebarCollapsed && <span className="hidden md:inline">Mes Inscriptions</span>}
-            </button>
-            {user.role === 'admin' && (
+               <CalendarIcon size={18} className="shrink-0" />{' '}
+               {!isSidebarCollapsed && <span className="hidden md:inline">Planning</span>}
+                </button>
+                
+                {user.role === 'civic_service' && (
               <button
-                onClick={() => setActiveTab('users')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black' : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                  } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
-                title="Utilisateurs"
-              >
-                <Users size={18} className="shrink-0" /> {!isSidebarCollapsed && <span className="hidden md:inline">Utilisateurs</span>}
-              </button>
-            )}
+              onClick={() => setActiveTab('civic_calendar')}
+               className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+               activeTab === 'civic_calendar'
+          ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black'
+          : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+             } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
+            title="Planning Service Civique"
+            >
+              <CalendarIcon size={18} className="shrink-0" />{' '}
+            {!isSidebarCollapsed && <span className="hidden md:inline">Planning SC</span>}
+            </button>
+              )}
+            <button
+    onClick={() => setActiveTab('my_registrations')}
+    className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+      activeTab === 'my_registrations'
+        ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black'
+        : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+    } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
+    title="Mes Inscriptions"
+  >
+    <List size={18} className="shrink-0" />{' '}
+    {!isSidebarCollapsed && <span className="hidden md:inline">Mes Inscriptions</span>}
+  </button>
+      {user.role === 'admin' && (
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            activeTab === 'users'
+              ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black'
+             : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+           } ${isSidebarCollapsed ? 'justify-center px-0 w-12' : 'w-full'}`}
+            title="Utilisateurs"
+            >
+           <Users size={18} className="shrink-0" />{' '}
+          {!isSidebarCollapsed && <span className="hidden md:inline">Utilisateurs</span>}
+         </button>
+          )}     
           </nav>
 
           <div className="mt-auto w-full space-y-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
@@ -177,36 +206,48 @@ export default function App() {
         {/* Scrollable Area */}
         <main className="flex-1 overflow-y-auto w-full">
           <div className="max-w-[1600px] mx-auto p-4 md:p-8">
-            <AnimatePresence mode="wait">
-              {activeTab === 'planning' ? (
-                <motion.div
-                  key="planning"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <CalendarView user={user} />
-                </motion.div>
-              ) : activeTab === 'users' ? (
-                <motion.div
-                  key="users"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <UserManagement />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="my_registrations"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <MyRegistrationsView user={user} />
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <AnimatePresence mode="wait">
+          {activeTab === 'planning' ? (
+          <motion.div
+          key="planning"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{ duration: 0.2 }}
+           >
+         <CalendarView user={user} />
+          </motion.div>
+          ) : activeTab === 'civic_calendar' ? (
+         <motion.div
+          key="civic_calendar"
+          initial={{ opacity: 0, y: 16 }}
+           animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{ duration: 0.2 }}
+          >
+           {/* For now this shows the same calendar; later you can pass special props for Service Civique */}
+          <CalendarView user={user} />
+          </motion.div>
+        ) : activeTab === 'users' ? (
+         <motion.div
+          key="users"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+            >
+           <UserManagement />
+        </motion.div>
+         ) : (
+       <motion.div
+         key="my_registrations"
+        initial={{ opacity: 0, y: 10 }}
+         animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          >
+         <MyRegistrationsView user={user} />
+        </motion.div>
+         )}
+    </AnimatePresence>
           </div>
         </main>
       </div>
@@ -218,5 +259,7 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+    
+    
   );
 }

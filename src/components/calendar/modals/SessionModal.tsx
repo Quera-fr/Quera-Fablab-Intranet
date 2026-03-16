@@ -179,7 +179,7 @@ const SessionModal = ({
                   Liste d'appel
                 </h4>
                 <div className="flex flex-col gap-2 w-full sm:w-auto">
-                  {(user.role === "civic_service" || user.role === "admin") && (
+                {(user.role === "civic_service" || user.role === "admin") && (
                     <div className="flex flex-col gap-2 w-full">
                       <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-2xl overflow-hidden w-full gap-1 px-1">
                         <Select
@@ -518,45 +518,45 @@ const SessionModal = ({
             </div>
           )}
 
-          {user.role === "admin" && selectedSession.type === "activity" && (
-            <div className="mt-10 pt-8 border-t border-zinc-100 dark:border-zinc-700 flex gap-4">
-              {selectedSession.status === "pending" ? (
-                <button
-                  onClick={() => {
-                    onValidateActivity(
-                      selectedSession.activity_id!,
-                      "approved",
-                    );
-                    onClose();
-                  }}
-                  className="flex-1 bg-black dark:bg-white dark:text-black text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl"
-                >
-                  <CheckCircle size={20} /> Approuver l'atelier
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    onValidateActivity(selectedSession.activity_id!, "pending");
-                    onClose();
-                  }}
-                  className="flex-1 border-2 border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3"
-                >
-                  <Clock size={20} /> Suspendre
-                </button>
-              )}
-            </div>
-          )}
+{user.role === "admin" && selectedSession.type === "activity" && (
+  <div className="mt-10 pt-8 border-t border-gray-100">
+    {selectedSession.status === "pending" ? (
+      <button
+        onClick={() => {
+          onValidateActivity(selectedSession.activity_id!, "approved");
+          onClose();
+        }}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-600 text-sm hover:bg-emerald-100 transition-colors"
+      >
+        <CheckCircle className="w-4 h-4" />
+        Approuver l'atelier
+      </button>
+    ) : (
+      <button
+        onClick={() => {
+          onValidateActivity(selectedSession.activity_id!, "pending");
+          onClose();
+        }}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 text-amber-600 text-sm hover:bg-amber-100 transition-colors"
+      >
+        <Clock className="w-4 h-4" />
+        Suspendre
+      </button>
+    )}
+  </div>
+)}
 
-          {(user.role === "admin" || user.role === "civic_service") && (
-            <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700 flex justify-end">
-              <button
-                onClick={() => onDeleteSession(selectedSession.id)}
-                className="text-red-500 text-[10px] font-black uppercase tracking-widest hover:underline flex items-center gap-1"
-              >
-                <Trash2 size={12} /> Supprimer la session
-              </button>
-            </div>
-          )}
+{(user.role === "admin" || user.role === "civic_service") && (
+  <div className="mt-4 pt-4 border-t border-gray-100">
+    <button
+      onClick={() => onDeleteSession(selectedSession.id)}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 text-sm hover:bg-red-100 transition-colors"
+    >
+      <Trash2 className="w-4 h-4" />
+      Supprimer la session
+    </button>
+  </div>
+)}
         </div>
       </motion.div>
     </div>
