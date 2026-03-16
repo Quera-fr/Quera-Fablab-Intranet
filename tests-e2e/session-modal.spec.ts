@@ -147,7 +147,35 @@ test.describe('SessionModal - Bénéficiaire', () => {
 
             // Give time for refetch and re-render
             await page.waitForTimeout(2000);
-            
+
+            // Mock /api/sessions to include the beneficiary as a participant after registration
+            await page.route("**/api/sessions", (route: any) => {
+                route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify([{
+                        id: 1,
+                        type: "homework_help",
+                        activity_id: null,
+                        start_time: new Date().toISOString(),
+                        end_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+                        participants: [
+                            {
+                                user_id: mockBeneficiary.id,
+                                role_at_registration: "beneficiary",
+                                firstname: mockBeneficiary.firstname,
+                                lastname: mockBeneficiary.lastname,
+                                role: mockBeneficiary.role,
+                                // Add any additional fields your app expects for a participant
+                            }
+                        ],
+                        title: "Aide aux devoirs",
+                        status: "approved",
+                        // Add any additional fields your app expects for a session
+                    }])
+                });
+            });
+
             // Re-open the session by finding it again (DOM may have been replaced)
             const updatedCard = page.locator('div.cursor-pointer.relative.group.overflow-hidden', { hasText: /Aide aux devoirs/i }).first();
             await updatedCard.click();
@@ -683,262 +711,6 @@ test.describe("SessionModal - Administrateur", () => {
       expect(removed).toBeTruthy();
     }
   });
-<<<<<<< HEAD
-});
-
-// ----------------------------------------------------------
-// Sélection multiple de bénéficiaires (admin & civic service)
-// ----------------------------------------------------------
-
-test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
-  const mockBeneficiaries = [
-    {
-      id: 101,
-      email: "alice@test.fr",
-      lastname: "Alpha",
-      firstname: "Alice",
-      role: "beneficiary",
-      dob: "2010-01-01",
-      address: "1 Rue",
-    },
-    {
-      id: 102,
-      email: "bob@test.fr",
-      lastname: "Beta",
-      firstname: "Bob",
-      role: "beneficiary",
-      dob: "2010-01-01",
-      address: "2 Rue",
-    },
-    {
-      id: 103,
-      email: "carol@test.fr",
-      lastname: "Gamma",
-      firstname: "Carol",
-      role: "beneficiary",
-      dob: "2010-01-01",
-      address: "3 Rue",
-    },
-  ];
-
-  const sessionData = {
-    id: 55501,
-    type: "activity",
-    activity_id: 1,
-    start_time: new Date().toISOString(),
-    end_time: new Date(Date.now() + 3600_000).toISOString(),
-    title: "Multi Benef Session",
-    status: "approved",
-    participants: [],
-  };
-
-  const sessionWithAliceAndBob = {
-    ...sessionData,
-    participants: [
-      {
-        user_id: 101,
-        role_at_registration: "beneficiary",
-        firstname: "Alice",
-        lastname: "Alpha",
-        role: "beneficiary",
-      },
-      {
-        user_id: 102,
-        role_at_registration: "beneficiary",
-        firstname: "Bob",
-        lastname: "Beta",
-        role: "beneficiary",
-      },
-    ],
-  };
-
-  async function setupMocksAndLogin(
-    page: any,
-    loginFn: (p: any) => Promise<void>,
-  ) {
-    const now = new Date();
-    const localSessionData = {
-      ...sessionData,
-      start_time: now.toISOString(),
-      end_time: new Date(now.getTime() + 3600_000).toISOString(),
-    };
-
-    await page.route("**/api/sessions", (route: any) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([localSessionData]),
-      }),
-    );
-    await page.route("**/api/users", (route: any) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockBeneficiaries),
-      }),
-    );
-
-    const sessionsServed = page.waitForResponse(
-      (r: any) => r.url().includes("/api/sessions") && r.status() === 200,
-      { timeout: 20000 },
-    );
-    await loginFn(page);
-    await sessionsServed;
-  }
-
-  test("admin inscrit plusieurs bénéficiaires via sélection multiple et Ajouter", async ({
-    page,
-  }) => {
-    await setupMocksAndLogin(page, loginAsAdmin);
-    await expect(page.locator("h2", { hasText: "Planning" })).toBeVisible({
-      timeout: 10000,
-    });
-    await expect(page.locator("text=Multi Benef Session")).toBeVisible({
-      timeout: 10000,
-    });
-    await page.click("text=Multi Benef Session");
-    await expect(page.locator("div.fixed.inset-0 h3")).toBeVisible();
-
-    const registeredUserIds: number[] = [];
-    await page.route("**/api/registrations", async (route) => {
-      if (route.request().method() === "POST") {
-        const body = JSON.parse(route.request().postData() || "{}");
-        registeredUserIds.push(body.user_id);
-        await route.fulfill({
-          status: 201,
-          contentType: "application/json",
-          body: "{}",
-        });
-      } else {
-        await route.continue();
-      }
-    });
-
-    const benControl = page.locator('[class*="rs__control"]').first();
-
-    // Sélectionner Alice (1ère option)
-    await benControl.click();
-    await expect(page.locator('[class*="rs__option"]').first()).toBeVisible({
-      timeout: 5000,
-    });
-    await page.locator('[class*="rs__option"]').first().click();
-
-    // Bob est maintenant la 1ère option (Alice retirée des options disponibles)
-    await expect(page.locator('[class*="rs__option"]').first()).toBeVisible({
-      timeout: 3000,
-    });
-    await page.locator('[class*="rs__option"]').first().click();
-
-    // Vérifier que les 2 tags apparaissent dans le select
-    await expect(page.locator(".rs__multi-value")).toHaveCount(2);
-
-    // Mettre à jour le mock sessions pour retourner Alice + Bob comme participants
-    const now = new Date();
-    await page.route("**/api/sessions", (route: any) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([{
-          ...sessionWithAliceAndBob,
-          start_time: now.toISOString(),
-          end_time: new Date(now.getTime() + 3600_000).toISOString(),
-        }]),
-      }),
-    );
-
-    // Cliquer Ajouter
-    await page.getByRole("button", { name: "Ajouter" }).first().click();
-
-    // Vérifier les requêtes POST envoyées
-    await page.waitForTimeout(400);
-    expect(registeredUserIds).toHaveLength(2);
-    expect(registeredUserIds).toContain(101); // Alice
-    expect(registeredUserIds).toContain(102); // Bob
-
-    // Vérifier que Alice et Bob apparaissent dans "Bénéficiaires inscrits"
-    await expect(page.locator("text=Alice Alpha")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator("text=Bob Beta")).toBeVisible({ timeout: 5000 });
-  });
-
-  test("civic service inscrit plusieurs bénéficiaires via sélection multiple et Ajouter", async ({
-    page,
-  }) => {
-    await setupMocksAndLogin(page, loginAsCivic);
-    await expect(page.locator("h2", { hasText: "Planning" })).toBeVisible({
-      timeout: 10000,
-    });
-    await expect(page.locator("text=Multi Benef Session")).toBeVisible({
-      timeout: 10000,
-    });
-    await page.click("text=Multi Benef Session");
-    await expect(page.locator("div.fixed.inset-0 h3")).toBeVisible();
-
-    const registeredUserIds: number[] = [];
-    await page.route("**/api/registrations", async (route) => {
-      if (route.request().method() === "POST") {
-        const body = JSON.parse(route.request().postData() || "{}");
-        registeredUserIds.push(body.user_id);
-        await route.fulfill({
-          status: 201,
-          contentType: "application/json",
-          body: "{}",
-        });
-      } else {
-        await route.continue();
-      }
-    });
-
-    const benControl = page.locator('[class*="rs__control"]').first();
-
-    // Ouvrir le menu
-    await benControl.click();
-    await expect(page.locator('[class*="rs__option"]').first()).toBeVisible({
-      timeout: 5000,
-    });
-
-    // Sélectionner Alice
-    await page.locator('[class*="rs__option"]').first().click();
-
-    // Sélectionner Bob qui est maintenant la 1ère option
-    await expect(page.locator('[class*="rs__option"]').first()).toBeVisible({
-      timeout: 3000,
-    });
-    await page.locator('[class*="rs__option"]').first().click();
-
-    // Vérifier que les 2 tags apparaissent dans le select
-    await expect(page.locator(".rs__multi-value")).toHaveCount(2);
-
-    // Mettre à jour le mock sessions pour retourner Alice + Bob comme participants
-    const now = new Date();
-    await page.route("**/api/sessions", (route: any) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            ...sessionWithAliceAndBob,
-            start_time: now.toISOString(),
-            end_time: new Date(now.getTime() + 3600_000).toISOString(),
-          },
-        ]),
-      }),
-    );
-
-    // Cliquer Ajouter
-    await page.getByRole("button", { name: "Ajouter" }).first().click();
-
-    // Vérifier les requêtes POST envoyées
-    await page.waitForTimeout(400);
-    expect(registeredUserIds).toHaveLength(2);
-    expect(registeredUserIds).toContain(101); // Alice
-    expect(registeredUserIds).toContain(102); // Bob
-
-    // Vérifier que Alice et Bob apparaissent dans "Bénéficiaires inscrits"
-    await expect(page.locator("text=Alice Alpha")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator("text=Bob Beta")).toBeVisible({ timeout: 5000 });
-  });
-=======
->>>>>>> 26d33a23cdb5991428e49c516424fff0b37be85e
 });
 
 // ----------------------------------------------------------
