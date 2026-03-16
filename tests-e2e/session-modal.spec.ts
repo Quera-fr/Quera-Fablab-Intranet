@@ -336,9 +336,6 @@ test.describe("SessionModal - Administrateur", () => {
     let sessionCard = page
       .locator("div.cursor-pointer.relative.group.overflow-hidden")
       .first();
-    if (!(await sessionCard.isVisible().catch(() => false))) {
-      sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
-    }
     await expect(sessionCard).toBeVisible({ timeout: 15000 });
     await sessionCard.click();
     await expect(page.locator("div.fixed.inset-0 h3")).toBeVisible();
