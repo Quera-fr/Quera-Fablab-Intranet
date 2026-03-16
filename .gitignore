@@ -1,5 +1,8 @@
 /node_modules
 
+# env files
+.env*
+
 /playwright-report
 /test-results
 

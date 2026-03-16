@@ -14,7 +14,7 @@ Bienvenue sur le dépôt du projet **Intranet Quera-Fablab**. Cette application 
 
 - **Frontend** : React 19, Vite, TailwindCSS v4, Framer Motion, Lucide React.
 - **Backend** : Node.js, Express.js.
-- **Base de données** : SQLite (via `better-sqlite3`). Stockée localement dans `association.db`.
+- **Base de données** : PostgreSQL (via `pg`), configurée avec des variables d'environnement.
 - **Langage** : TypeScript.
 
 ---
@@ -63,7 +63,7 @@ Les profils suivants sont générés (de 1 à 5). Par exemple :
 
 ## 📂 Structure du projet
 
-- `server.ts` : Point d'entrée principal (Backend Express + Configuration de la base de données + Vite Middleware).
-- `/src` : Code source du Frontend (React, Composants, Pages).
-- `/public/uploads` : Dossier contenant les images uploadées (généré automatiquement).
-- `association.db` : Fichier de la base de données SQLite généré au premier lancement.
+- server.ts : Point d'entrée principal (Backend Express + connexion PostgreSQL + Vite middleware).
+- src : Code source du Frontend (React, Composants, Pages).
+- uploads : Dossier contenant les images uploadées (généré automatiquement).
+- .env : Variables d'environnement locales pour la connexion PostgreSQL.
