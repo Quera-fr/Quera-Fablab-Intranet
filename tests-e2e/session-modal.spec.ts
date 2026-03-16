@@ -49,15 +49,21 @@ const mockCivic: User = {
 };
 
 async function loginAsAdmin(page: any) {
-    // perform a real login; this ensures sessions from the DB are loaded
-    await page.goto('/');
-    await page.fill('input[type="email"]', 'admin@assoc.fr');
-    await page.fill('input[type="password"]', 'admin123');
-    await Promise.all([
-        page.waitForURL('**/*'),
-        page.click('button[type="submit"]'),
-    ]);
-    await page.waitForLoadState('networkidle');
+  await page.goto("/");
+  await page.route("**/api/login", async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockAdmin),
+    });
+  });
+  await page.fill('input[type="email"]', mockAdmin.email);
+  await page.fill('input[type="password"]', "admin123");
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/login")),
+    page.click('button[type="submit"]'),
+  ]);
+  await page.waitForLoadState("networkidle");
 }
 
 async function loginAsCivic(page: any) {

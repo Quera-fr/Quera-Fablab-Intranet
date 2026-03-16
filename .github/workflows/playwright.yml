@@ -31,7 +31,7 @@ jobs:
         run: npm ci
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
-      - name: Seed database         # ← script SQL pour créer tables + users
+      - name: Seed database
         run: psql -h localhost -U postgres -d intranet -f seed.sql
         env:
           PGPASSWORD: postgres
