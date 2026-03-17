@@ -46,3 +46,12 @@ export interface Session {
   max_participants?: number;
   participants: Participant[];
 }
+
+export interface QueraPointManager {
+  date: string;
+  user_id: number;
+  firstname: string;
+  lastname: string;
+  role: string;
+}
+

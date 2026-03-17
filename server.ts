@@ -96,6 +96,12 @@ async function initializeDatabase() {
         FOREIGN KEY(session_id) REFERENCES sessions(id),
         FOREIGN KEY(user_id) REFERENCES users(id)
       );
+
+      CREATE TABLE IF NOT EXISTS quera_point_managers (
+        date TEXT PRIMARY KEY,
+        user_id INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
     `);
     console.log("Database tables initialized");
   } finally {
@@ -604,6 +610,38 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/quera-point-managers", async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT q.date, q.user_id, u.firstname, u.lastname, u.role
+        FROM quera_point_managers q
+        JOIN users u ON q.user_id = u.id
+      `);
+      res.json(result.rows);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quera-point-managers", async (req: Request, res: Response) => {
+    try {
+      const { date, user_id } = req.body;
+      if (!user_id) {
+        await pool.query("DELETE FROM quera_point_managers WHERE date = $1", [date]);
+      } else {
+        await pool.query(
+          `INSERT INTO quera_point_managers (date, user_id) 
+           VALUES ($1, $2) 
+           ON CONFLICT (date) DO UPDATE SET user_id = EXCLUDED.user_id`,
+          [date, user_id]
+        );
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
     }
   });
 
