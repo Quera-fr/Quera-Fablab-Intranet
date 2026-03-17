@@ -33,6 +33,9 @@ describe('CalendarView', () => {
             if (url === '/api/users') {
                 return { ok: true, json: async () => [mockAdminUser, mockStandardUser] };
             }
+            if (url === '/api/quera-point-managers') {
+                return { ok: true, json: async () => [] };
+            }
             if (url === '/api/sessions/homework/batch') {
                 return { ok: true, json: async () => ({}) };
             }
@@ -49,6 +52,7 @@ describe('CalendarView', () => {
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith('/api/sessions');
             expect(global.fetch).toHaveBeenCalledWith('/api/users');
+            expect(global.fetch).toHaveBeenCalledWith('/api/quera-point-managers');
             expect(screen.getByText('Test Activity')).toBeInTheDocument();
         });
     });
@@ -59,6 +63,7 @@ describe('CalendarView', () => {
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith('/api/sessions');
             expect(global.fetch).not.toHaveBeenCalledWith('/api/users');
+            expect(global.fetch).toHaveBeenCalledWith('/api/quera-point-managers');
         });
     });
 

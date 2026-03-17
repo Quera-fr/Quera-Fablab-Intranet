@@ -13,12 +13,13 @@ import {
   List,
   Printer,
 } from "lucide-react";
-import { User, Session } from "../../types";
+import { User, Session, QueraPointManager } from "../../types";
 
 import SessionModal from "./modals/SessionModal";
 import ActivityFormModal from "./modals/ActivityFormModal";
 import HomeworkFormModal from "./modals/HomeworkFormModal";
 import RoomBookingFormModal from "./modals/RoomBookingFormModal";
+import ManagerSelectionModal from "./modals/ManagerSelectionModal";
 
 interface CalendarViewProps {
   user: User;
@@ -38,6 +39,10 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     sessions.find((s) => s.id === selectedSessionId) ?? null;
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [formDefaultDate, setFormDefaultDate] = useState<Date | null>(null);
+  const [queraPointManagers, setQueraPointManagers] = useState<
+    QueraPointManager[]
+  >([]);
+  const [managerModalDate, setManagerModalDate] = useState<Date | null>(null);
 
   const [selectedSessionIds, setSelectedSessionIds] = useState<number[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -264,10 +269,34 @@ const handlePrintWeeklyPlan = () => {
     }
   };
 
+  const fetchQueraPointManagers = async () => {
+    const res = await fetch("/api/quera-point-managers");
+    if (!res.ok) return;
+    const data = await res.json();
+    setQueraPointManagers(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     fetchSessions();
     fetchUsers();
+    fetchQueraPointManagers();
   }, []);
+
+  const toDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const getInitials = (firstname?: string, lastname?: string) =>
+    `${firstname?.[0] ?? ""}${lastname?.[0] ?? ""}`.toUpperCase();
+
+  const managerByDateKey = useMemo(() => {
+    const map = new Map<string, QueraPointManager>();
+    for (const m of queraPointManagers) map.set(m.date, m);
+    return map;
+  }, [queraPointManagers]);
 
   const daysInWeek = useMemo(() => {
     const start = new Date(currentDate);
@@ -647,21 +676,55 @@ const handlePrintWeeklyPlan = () => {
           {viewMode === "week" && (
             <div className="overflow-x-auto">
               <div className="grid gap-2 mb-2 grid-cols-7 w-full">
-                {daysInWeek.map((day) => (
-                  <div
-                    key={day.toISOString()}
-                    className={`text-center p-3 rounded-2xl border shrink-0 ${
-                      day.toDateString() === new Date().toDateString()
-                        ? "bg-black dark:bg-white border-black dark:border-white text-white dark:text-black shadow-xl scale-105 z-10"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white"
-                    }`}
-                  >
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
-                      {day.toLocaleDateString("fr-FR", { weekday: "short" })}
-                    </p>
-                    <p className="text-xl font-black">{day.getDate()}</p>
-                  </div>
-                ))}
+                {daysInWeek.map((day) => {
+                  const isToday =
+                    day.toDateString() === new Date().toDateString();
+                  const dateKey = toDateKey(day);
+                  const manager = managerByDateKey.get(dateKey);
+
+                  const isAdmin = user.role === "admin";
+                  const hoverClass = isAdmin
+                    ? isToday
+                      ? "hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                      : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                    : "";
+
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      role={isAdmin ? "button" : undefined}
+                      tabIndex={isAdmin ? 0 : undefined}
+                      onClick={() => {
+                        if (!isAdmin) return;
+                        setManagerModalDate(day);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!isAdmin) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setManagerModalDate(day);
+                        }
+                      }}
+                      className={`relative overflow-visible text-center p-3 rounded-2xl border shrink-0 transition-colors ${
+                        isAdmin ? "cursor-pointer" : ""
+                      } ${hoverClass} ${
+                        isToday
+                          ? "bg-black dark:bg-white border-black dark:border-white text-white dark:text-black shadow-xl scale-105 z-10"
+                          : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white"
+                      }`}
+                    >
+                      {manager && (
+                        <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-orange-500 text-white border-2 border-white dark:border-zinc-900 shadow-lg flex items-center justify-center text-[10px] font-black">
+                          {getInitials(manager.firstname, manager.lastname)}
+                        </div>
+                      )}
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                        {day.toLocaleDateString("fr-FR", { weekday: "short" })}
+                      </p>
+                      <p className="text-xl font-black">{day.getDate()}</p>
+                    </div>
+                  );
+                })}
               </div>
 
               {SESSION_ROW_TYPES.map((rowType) => (
@@ -1020,6 +1083,25 @@ const handlePrintWeeklyPlan = () => {
             calculateDefaultTimes={calculateDefaultTimes}
             onClose={() => setShowAddRoom(false)}
             onFetchSessions={fetchSessions}
+          />
+        )}
+        {managerModalDate && user.role === "admin" && (
+          <ManagerSelectionModal
+            date={managerModalDate}
+            allUsers={allUsers}
+            onClose={() => setManagerModalDate(null)}
+            onSelect={async (userId) => {
+              await fetch("/api/quera-point-managers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  date: toDateKey(managerModalDate),
+                  user_id: userId,
+                }),
+              });
+              setManagerModalDate(null);
+              fetchQueraPointManagers();
+            }}
           />
         )}
       </AnimatePresence>

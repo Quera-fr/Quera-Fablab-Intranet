@@ -45,6 +45,9 @@ describe('US2 - CalendarView Administration (Frontend)', () => {
       if (url.includes('/api/users')) {
         return Promise.resolve({ ok: true, json: async () => [] });
       }
+      if (url.includes('/api/quera-point-managers')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
   });
