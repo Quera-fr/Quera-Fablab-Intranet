@@ -55,3 +55,18 @@ export interface QueraPointManager {
   role: string;
 }
 
+export interface QueraPointsBeneficiarySummary {
+  user_id: number;
+  firstname: string;
+  lastname: string;
+  points: number;
+}
+
+export interface QueraPointsSummary {
+  date: string;
+  manager_user_id: number | null;
+  total: number;
+  remaining: number;
+  beneficiaries: QueraPointsBeneficiarySummary[];
+}
+

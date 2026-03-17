@@ -20,6 +20,7 @@ import ActivityFormModal from "./modals/ActivityFormModal";
 import HomeworkFormModal from "./modals/HomeworkFormModal";
 import RoomBookingFormModal from "./modals/RoomBookingFormModal";
 import ManagerSelectionModal from "./modals/ManagerSelectionModal";
+import QueraPointsModal from "./modals/QueraPointsModal";
 
 interface CalendarViewProps {
   user: User;
@@ -43,6 +44,7 @@ const CalendarView = ({ user }: CalendarViewProps) => {
     QueraPointManager[]
   >([]);
   const [managerModalDate, setManagerModalDate] = useState<Date | null>(null);
+  const [pointsModalDate, setPointsModalDate] = useState<Date | null>(null);
 
   const [selectedSessionIds, setSelectedSessionIds] = useState<number[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -297,6 +299,28 @@ const handlePrintWeeklyPlan = () => {
     for (const m of queraPointManagers) map.set(m.date, m);
     return map;
   }, [queraPointManagers]);
+
+  const presentBeneficiariesByDateKey = useMemo(() => {
+    const map = new Map<
+      string,
+      Map<number, { user_id: number; firstname: string; lastname: string }>
+    >();
+    for (const s of sessions) {
+      const key = toDateKey(new Date(s.start_time));
+      if (!map.has(key)) map.set(key, new Map());
+      const inner = map.get(key)!;
+      for (const p of s.participants ?? []) {
+        if (p.role === "beneficiary") {
+          inner.set(p.user_id, {
+            user_id: p.user_id,
+            firstname: p.firstname,
+            lastname: p.lastname,
+          });
+        }
+      }
+    }
+    return map;
+  }, [sessions]);
 
   const daysInWeek = useMemo(() => {
     const start = new Date(currentDate);
@@ -674,7 +698,7 @@ const handlePrintWeeklyPlan = () => {
           className="w-full"
         >
           {viewMode === "week" && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto pt-3">
               <div className="grid gap-2 mb-2 grid-cols-7 w-full">
                 {daysInWeek.map((day) => {
                   const isToday =
@@ -683,30 +707,45 @@ const handlePrintWeeklyPlan = () => {
                   const manager = managerByDateKey.get(dateKey);
 
                   const isAdmin = user.role === "admin";
+                  const isCivic = user.role === "civic_service";
+                  const isResponsibleToday =
+                    isToday && manager?.user_id === user.id;
                   const hoverClass = isAdmin
                     ? isToday
-                      ? "hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                      ? "hover:bg-zinc-700 dark:hover:bg-zinc-300"
                       : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
                     : "";
 
                   return (
                     <div
                       key={day.toISOString()}
-                      role={isAdmin ? "button" : undefined}
-                      tabIndex={isAdmin ? 0 : undefined}
+                      role={isAdmin || (isCivic && isResponsibleToday) ? "button" : undefined}
+                      tabIndex={isAdmin || (isCivic && isResponsibleToday) ? 0 : undefined}
                       onClick={() => {
-                        if (!isAdmin) return;
-                        setManagerModalDate(day);
+                        if (isAdmin) {
+                          setManagerModalDate(day);
+                          return;
+                        }
+                        if (isCivic && isResponsibleToday) {
+                          setPointsModalDate(day);
+                        }
                       }}
                       onKeyDown={(e) => {
-                        if (!isAdmin) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setManagerModalDate(day);
+                          if (isAdmin) {
+                            setManagerModalDate(day);
+                            return;
+                          }
+                          if (isCivic && isResponsibleToday) {
+                            setPointsModalDate(day);
+                          }
                         }
                       }}
                       className={`relative overflow-visible text-center p-3 rounded-2xl border shrink-0 transition-colors ${
-                        isAdmin ? "cursor-pointer" : ""
+                        isAdmin || (isCivic && isResponsibleToday)
+                          ? "cursor-pointer"
+                          : ""
                       } ${hoverClass} ${
                         isToday
                           ? "bg-black dark:bg-white border-black dark:border-white text-white dark:text-black shadow-xl scale-105 z-10"
@@ -1102,6 +1141,17 @@ const handlePrintWeeklyPlan = () => {
               setManagerModalDate(null);
               fetchQueraPointManagers();
             }}
+          />
+        )}
+        {pointsModalDate && user.role === "civic_service" && (
+          <QueraPointsModal
+            date={pointsModalDate}
+            managerUserId={user.id}
+            presentBeneficiaries={Array.from(
+              presentBeneficiariesByDateKey.get(toDateKey(pointsModalDate))?.values() ??
+                [],
+            )}
+            onClose={() => setPointsModalDate(null)}
           />
         )}
       </AnimatePresence>

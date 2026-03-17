@@ -102,6 +102,19 @@ async function initializeDatabase() {
         user_id INTEGER,
         FOREIGN KEY(user_id) REFERENCES users(id)
       );
+
+      CREATE TABLE IF NOT EXISTS quera_points (
+        id SERIAL PRIMARY KEY,
+        date TEXT NOT NULL,
+        manager_user_id INTEGER NOT NULL,
+        beneficiary_user_id INTEGER NOT NULL,
+        delta INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        FOREIGN KEY(manager_user_id) REFERENCES users(id),
+        FOREIGN KEY(beneficiary_user_id) REFERENCES users(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_quera_points_date_manager ON quera_points(date, manager_user_id);
     `);
     console.log("Database tables initialized");
   } finally {
@@ -642,6 +655,141 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/quera-points", async (req: Request, res: Response) => {
+    try {
+      const date = String(req.query.date || "");
+      const managerUserIdRaw = req.query.manager_user_id;
+      const managerUserId = managerUserIdRaw !== undefined ? Number(managerUserIdRaw) : null;
+      if (!date) return res.status(400).json({ error: "date requise" });
+
+      const params: any[] = [date];
+      let managerWhere = "";
+      if (managerUserId !== null && !Number.isNaN(managerUserId)) {
+        params.push(managerUserId);
+        managerWhere = " AND manager_user_id = $2";
+      }
+
+      const totalsResult = await pool.query(
+        `SELECT COALESCE(SUM(delta), 0) AS total
+         FROM quera_points
+         WHERE date = $1${managerWhere}`,
+        params
+      );
+
+      const perBeneficiaryResult = await pool.query(
+        `SELECT qp.beneficiary_user_id AS user_id,
+                COALESCE(SUM(qp.delta), 0) AS points,
+                u.firstname, u.lastname
+         FROM quera_points qp
+         JOIN users u ON u.id = qp.beneficiary_user_id
+         WHERE qp.date = $1${managerWhere}
+         GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
+         ORDER BY points DESC, u.lastname ASC, u.firstname ASC`,
+        params
+      );
+
+      const total = Number(totalsResult.rows[0]?.total ?? 0);
+      const remaining = Math.max(0, 5 - total);
+
+      res.json({
+        date,
+        manager_user_id: managerUserId,
+        total,
+        remaining,
+        beneficiaries: perBeneficiaryResult.rows.map((r: any) => ({
+          user_id: Number(r.user_id),
+          firstname: r.firstname,
+          lastname: r.lastname,
+          points: Number(r.points),
+        })),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quera-points", async (req: Request, res: Response) => {
+    try {
+      const { date, manager_user_id, beneficiary_user_id, delta } = req.body;
+      const managerUserId = Number(manager_user_id);
+      const beneficiaryUserId = Number(beneficiary_user_id);
+      const deltaInt = Number(delta);
+
+      if (!date) return res.status(400).json({ error: "date requise" });
+      if (Number.isNaN(managerUserId) || Number.isNaN(beneficiaryUserId) || Number.isNaN(deltaInt)) {
+        return res.status(400).json({ error: "Paramètres invalides" });
+      }
+      if (!Number.isInteger(deltaInt) || deltaInt === 0) {
+        return res.status(400).json({ error: "delta doit être un entier non nul" });
+      }
+      if (Math.abs(deltaInt) > 5) {
+        return res.status(400).json({ error: "delta trop grand" });
+      }
+
+      const managerCheck = await pool.query("SELECT user_id FROM quera_point_managers WHERE date = $1", [date]);
+      const designatedManagerId = managerCheck.rows[0]?.user_id;
+      if (!designatedManagerId || Number(designatedManagerId) !== managerUserId) {
+        return res.status(403).json({ error: "Vous n'êtes pas responsable Quera Point de cette journée." });
+      }
+
+      const beneficiaryPresentResult = await pool.query(
+        `SELECT 1
+         FROM registrations r
+         JOIN sessions s ON s.id = r.session_id
+         JOIN users u ON u.id = r.user_id
+         WHERE r.user_id = $1
+           AND u.role = 'beneficiary'
+           AND DATE(s.start_time::timestamp) = $2::date
+         LIMIT 1`,
+        [beneficiaryUserId, date]
+      );
+      if (beneficiaryPresentResult.rows.length === 0) {
+        return res.status(400).json({ error: "Le bénéficiaire n'est pas inscrit à une session aujourd'hui." });
+      }
+
+      const { totalForDay, beneficiaryTotal } = await withTransaction(async (client) => {
+        const totals = await client.query(
+          `SELECT COALESCE(SUM(delta), 0) AS total
+           FROM quera_points
+           WHERE date = $1 AND manager_user_id = $2`,
+          [date, managerUserId]
+        );
+        const beneficiaryTotals = await client.query(
+          `SELECT COALESCE(SUM(delta), 0) AS total
+           FROM quera_points
+           WHERE date = $1 AND manager_user_id = $2 AND beneficiary_user_id = $3`,
+          [date, managerUserId, beneficiaryUserId]
+        );
+
+        const totalForDayNum = Number(totals.rows[0]?.total ?? 0);
+        const beneficiaryTotalNum = Number(beneficiaryTotals.rows[0]?.total ?? 0);
+
+        if (deltaInt > 0 && totalForDayNum + deltaInt > 5) {
+          throw new Error("Budget de points du jour dépassé (max 5).");
+        }
+        if (beneficiaryTotalNum + deltaInt < 0) {
+          throw new Error("Impossible de retirer plus de points que déjà donnés aujourd'hui à ce bénéficiaire.");
+        }
+
+        await client.query(
+          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta)
+           VALUES ($1, $2, $3, $4)`,
+          [date, managerUserId, beneficiaryUserId, deltaInt]
+        );
+
+        return { totalForDay: totalForDayNum + deltaInt, beneficiaryTotal: beneficiaryTotalNum + deltaInt };
+      });
+
+      res.json({ success: true, date, manager_user_id: managerUserId, beneficiary_user_id: beneficiaryUserId, total: totalForDay, beneficiary_total: beneficiaryTotal });
+    } catch (e: any) {
+      const msg = e?.message ?? "Erreur";
+      if (msg.includes("Budget") || msg.includes("Impossible de retirer")) {
+        return res.status(400).json({ error: msg });
+      }
+      res.status(400).json({ error: msg });
     }
   });
 
