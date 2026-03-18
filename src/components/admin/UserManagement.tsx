@@ -1,10 +1,15 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import { User, Role } from '../../types';
+import { User, Role, QueraPointsTotal } from '../../types';
 
-const UserManagement = () => {
+interface UserManagementProps {
+    currentUser: User;
+}
+
+const UserManagement = ({ currentUser }: UserManagementProps) => {
     const [users, setUsers] = useState<User[]>([]);
+    const [pointsTotals, setPointsTotals] = useState<Map<number, number>>(new Map());
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showAdd, setShowAdd] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -23,7 +28,22 @@ const UserManagement = () => {
         setUsers(await res.json());
     };
 
-    useEffect(() => { fetchUsers(); }, []);
+    const fetchPointsTotals = async () => {
+        const res = await fetch('/api/quera-points/totals');
+        if (!res.ok) return;
+        const data: QueraPointsTotal[] = await res.json();
+        const map = new Map<number, number>();
+        data.forEach(t => map.set(t.user_id, t.total_points));
+        setPointsTotals(map);
+    };
+
+    useEffect(() => {
+        fetchUsers();
+        fetchPointsTotals();
+    }, []);
+
+    const isAdminOrCivic = currentUser.role === 'admin' || currentUser.role === 'civic_service';
+    const isAdmin = currentUser.role === 'admin';
 
     const handleAdd = async (e: FormEvent) => {
         e.preventDefault();
@@ -87,7 +107,7 @@ const UserManagement = () => {
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Utilisateurs</h2>
-                    {selectedIds.length > 0 && (
+                    {isAdmin && selectedIds.length > 0 && (
                         <button
                             onClick={handleBulkDelete}
                             className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600 transition-all font-bold text-[10px] uppercase tracking-wider shadow-lg animate-in fade-in slide-in-from-left-4"
@@ -96,62 +116,92 @@ const UserManagement = () => {
                         </button>
                     )}
                 </div>
-                <button
-                    onClick={() => setShowAdd(true)}
-                    className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors font-bold text-sm uppercase tracking-wider"
-                >
-                    <Plus size={18} /> Ajouter
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={() => setShowAdd(true)}
+                        className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors font-bold text-sm uppercase tracking-wider"
+                    >
+                        <Plus size={18} /> Ajouter
+                    </button>
+                )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-zinc-50 border-b border-zinc-200">
-                            <th className="p-4 w-10">
-                                <input
-                                    type="checkbox"
-                                    checked={users.length > 0 && selectedIds.length === users.length}
-                                    onChange={toggleSelectAll}
-                                    className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
-                                />
-                            </th>
+                        <tr className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
+                            {isAdmin && (
+                                <th className="p-4 w-10">
+                                    <input
+                                        type="checkbox"
+                                        checked={users.length > 0 && selectedIds.length === users.length}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                                    />
+                                </th>
+                            )}
                             <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">Nom</th>
                             <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">Rôle</th>
                             <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">Email</th>
-                            <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest text-right">Actions</th>
+                            {isAdminOrCivic && (
+                                <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest text-center">
+                                    Pts Quera
+                                </th>
+                            )}
+                            {isAdmin && (
+                                <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest text-right">Actions</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
                         {users.map(u => (
-                            <tr key={u.id} className={`border-t border-zinc-100 hover:bg-zinc-50 transition-colors ${selectedIds.includes(u.id) ? 'bg-zinc-50/50' : ''}`}>
+                            <tr key={u.id} className={`border-t border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${selectedIds.includes(u.id) ? 'bg-zinc-50/50 dark:bg-zinc-800/30' : ''}`}>
+                                {isAdmin && (
+                                    <td className="p-4">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.includes(u.id)}
+                                            onChange={() => toggleSelect(u.id)}
+                                            className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                                        />
+                                    </td>
+                                )}
+                                <td className="p-4 text-zinc-800 dark:text-white font-bold">{u.firstname} {u.lastname}</td>
                                 <td className="p-4">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedIds.includes(u.id)}
-                                        onChange={() => toggleSelect(u.id)}
-                                        className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
-                                    />
-                                </td>
-                                <td className="p-4 text-zinc-800 font-bold">{u.firstname} {u.lastname}</td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${u.role === 'admin' ? 'bg-zinc-900 text-white' :
-                                        u.role === 'volunteer' ? 'bg-zinc-100 text-zinc-600 border border-zinc-200' :
-                                            u.role === 'civic_service' ? 'bg-zinc-200 text-zinc-800' :
-                                                'bg-white text-zinc-500 border border-zinc-200'
+                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${u.role === 'admin' ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' :
+                                        u.role === 'volunteer' ? 'bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300' :
+                                            u.role === 'civic_service' ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200' :
+                                                'bg-white text-zinc-500 border border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-700'
                                         }`}>
                                         {u.role}
                                     </span>
                                 </td>
-                                <td className="p-4 text-zinc-500 text-sm font-medium">{u.email}</td>
-                                <td className="p-4 flex gap-2 justify-end">
-                                    <button onClick={() => { setEditingUser(u); setEditForm({ ...u, password: '' }); }} className="p-2 text-zinc-400 hover:text-black hover:bg-white rounded-lg transition-all" title="Modifier">
-                                        <Pencil size={18} />
-                                    </button>
-                                    <button onClick={() => handleDelete(u.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Supprimer">
-                                        <Trash2 size={18} />
-                                    </button>
-                                </td>
+                                <td className="p-4 text-zinc-500 dark:text-zinc-400 text-sm font-medium">{u.email}</td>
+                                {isAdminOrCivic && (
+                                    <td className="p-4 text-center">
+                                        {u.role === 'beneficiary' ? (
+                                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-black ${
+                                                (pointsTotals.get(u.id) ?? 0) > 0
+                                                    ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                                                    : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500'
+                                            }`}>
+                                                {pointsTotals.get(u.id) ?? 0}
+                                            </span>
+                                        ) : (
+                                            <span className="text-zinc-300 dark:text-zinc-700 text-sm">—</span>
+                                        )}
+                                    </td>
+                                )}
+                                {isAdmin && (
+                                    <td className="p-4 flex gap-2 justify-end">
+                                        <button onClick={() => { setEditingUser(u); setEditForm({ ...u, password: '' }); }} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-zinc-800 rounded-lg transition-all" title="Modifier">
+                                            <Pencil size={18} />
+                                        </button>
+                                        <button onClick={() => handleDelete(u.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded-lg transition-all" title="Supprimer">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -159,7 +209,7 @@ const UserManagement = () => {
             </div>
 
             <AnimatePresence>
-                {showAdd && (
+                {isAdmin && showAdd && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
@@ -191,7 +241,7 @@ const UserManagement = () => {
                         </motion.div>
                     </div>
                 )}
-                {editingUser && (
+                {isAdmin && editingUser && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditingUser(null)}>
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}

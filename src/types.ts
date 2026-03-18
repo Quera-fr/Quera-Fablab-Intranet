@@ -70,3 +70,9 @@ export interface QueraPointsSummary {
   beneficiaries: QueraPointsBeneficiarySummary[];
 }
 
+export interface QueraPointsTotal {
+  user_id: number;
+  firstname: string;
+  lastname: string;
+  total_points: number;
+}

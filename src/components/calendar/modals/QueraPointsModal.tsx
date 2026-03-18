@@ -35,6 +35,7 @@ export default function QueraPointsModal({
     number | ""
   >("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [comment, setComment] = useState("");
 
   const sortedPresent = useMemo(() => {
     return [...presentBeneficiaries].sort((a, b) => {
@@ -75,6 +76,7 @@ export default function QueraPointsModal({
           manager_user_id: managerUserId,
           beneficiary_user_id: selectedBeneficiaryId,
           delta,
+          comment: comment.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -82,6 +84,7 @@ export default function QueraPointsModal({
         alert(err.error ?? "Erreur");
         return;
       }
+      setComment("");
       await fetchSummary();
     } finally {
       setIsSubmitting(false);
@@ -174,6 +177,19 @@ export default function QueraPointsModal({
                 Aucun bénéficiaire inscrit à une session aujourd&apos;hui.
               </div>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+              Commentaire <span className="normal-case font-medium text-zinc-400">(optionnel)</span>
+            </label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Motif de l'ajout ou de la suppression de points…"
+              rows={2}
+              className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm text-zinc-800 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

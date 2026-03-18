@@ -5,6 +5,16 @@ import { User } from "../../types";
 
 global.fetch = vi.fn();
 
+const mockAdminUser: User = {
+  id: 99,
+  firstname: "Super",
+  lastname: "Admin",
+  role: "admin",
+  email: "admin@assoc.fr",
+  dob: "1980-01-01",
+  address: "123 Rue",
+};
+
 const mockUsers: User[] = [
   {
     id: 1,
@@ -32,12 +42,15 @@ beforeEach(() => {
     if (url === "/api/users") {
       return { ok: true, json: async () => mockUsers };
     }
+    if (url === "/api/quera-points/totals") {
+      return { ok: true, json: async () => [] };
+    }
     return { ok: true, json: async () => [] };
   });
 });
 
 it("fetches and displays volunteers and beneficiaries", async () => {
-  render(<UserManagement />);
+  render(<UserManagement currentUser={mockAdminUser} />);
 
   await waitFor(() => {
     expect(global.fetch).toHaveBeenCalledWith("/api/users");

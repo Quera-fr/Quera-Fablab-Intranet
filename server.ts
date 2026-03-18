@@ -116,6 +116,7 @@ async function initializeDatabase() {
 
       CREATE INDEX IF NOT EXISTS idx_quera_points_date_manager ON quera_points(date, manager_user_id);
     `);
+    await client.query(`ALTER TABLE quera_points ADD COLUMN IF NOT EXISTS comment TEXT`);
     console.log("Database tables initialized");
   } finally {
     client.release();
@@ -711,9 +712,31 @@ async function startServer() {
     }
   });
 
+  app.get("/api/quera-points/totals", async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(
+        `SELECT qp.beneficiary_user_id AS user_id,
+                COALESCE(SUM(qp.delta), 0) AS total_points,
+                u.firstname, u.lastname
+         FROM quera_points qp
+         JOIN users u ON u.id = qp.beneficiary_user_id
+         GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
+         ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`
+      );
+      res.json(result.rows.map((r: any) => ({
+        user_id: Number(r.user_id),
+        firstname: r.firstname,
+        lastname: r.lastname,
+        total_points: Number(r.total_points),
+      })));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/quera-points", async (req: Request, res: Response) => {
     try {
-      const { date, manager_user_id, beneficiary_user_id, delta } = req.body;
+      const { date, manager_user_id, beneficiary_user_id, delta, comment } = req.body;
       const managerUserId = Number(manager_user_id);
       const beneficiaryUserId = Number(beneficiary_user_id);
       const deltaInt = Number(delta);
@@ -775,9 +798,9 @@ async function startServer() {
         }
 
         await client.query(
-          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta)
-           VALUES ($1, $2, $3, $4)`,
-          [date, managerUserId, beneficiaryUserId, deltaInt]
+          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, comment)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [date, managerUserId, beneficiaryUserId, deltaInt, comment ?? null]
         );
 
         return { totalForDay: totalForDayNum + deltaInt, beneficiaryTotal: beneficiaryTotalNum + deltaInt };

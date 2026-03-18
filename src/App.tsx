@@ -116,7 +116,7 @@ export default function App() {
     <List size={18} className="shrink-0" />{' '}
     {!isSidebarCollapsed && <span className="hidden md:inline">Mes Inscriptions</span>}
   </button>
-      {user.role === 'admin' && (
+      {(user.role === 'admin' || user.role === 'civic_service') && (
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -235,7 +235,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
             >
-           <UserManagement />
+           <UserManagement currentUser={user} />
         </motion.div>
          ) : (
        <motion.div
