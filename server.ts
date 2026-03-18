@@ -58,14 +58,16 @@ async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE,
-        password TEXT,
-        lastname TEXT,
-        firstname TEXT,
-        role TEXT,
+        firstname TEXT NOT NULL,
+        lastname TEXT NOT NULL,
+        role TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
         dob TEXT,
-        address TEXT
+        address TEXT,
+        profile_picture_url TEXT
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
 
       CREATE TABLE IF NOT EXISTS activities (
         id SERIAL PRIMARY KEY,
@@ -219,7 +221,7 @@ async function startServer() {
 
   app.get("/api/users", async (_req: Request, res: Response) => {
     try {
-      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address FROM users");
+      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address, profile_picture_url FROM users ORDER BY lastname, firstname");
       res.json(result.rows);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -228,11 +230,11 @@ async function startServer() {
 
   app.post("/api/users", async (req: Request, res: Response) => {
     try {
-      const { email, password, lastname, firstname, role, dob, address } = req.body;
+      const { email, password, lastname, firstname, role, dob, address, profile_picture_url } = req.body;
       const result = await pool.query(
-        `INSERT INTO users (email, password, lastname, firstname, role, dob, address)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [email, password || "password123", lastname, firstname, role, dob, address]
+        `INSERT INTO users (email, password, lastname, firstname, role, dob, address, profile_picture_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [email, password || "password123", lastname, firstname, role, dob, address, profile_picture_url]
       );
       res.json({ id: result.rows[0].id });
     } catch (e: any) {
@@ -303,7 +305,7 @@ async function startServer() {
 
   app.get("/api/users/:id", async (req: Request, res: Response) => {
     try {
-      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address FROM users WHERE id = $1", [
+      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address, profile_picture_url FROM users WHERE id = $1", [
         req.params.id,
       ]);
       const user = result.rows[0];
@@ -317,19 +319,19 @@ async function startServer() {
 
   app.patch("/api/users/:id", async (req: Request, res: Response) => {
     try {
-      const { email, password, lastname, firstname, role, dob, address } = req.body;
+      const { email, password, lastname, firstname, role, dob, address, profile_picture_url } = req.body;
 
       if (password) {
         await pool.query(
-          `UPDATE users SET email = $1, password = $2, lastname = $3, firstname = $4, role = $5, dob = $6, address = $7
-           WHERE id = $8`,
-          [email, password, lastname, firstname, role, dob, address, req.params.id]
+          `UPDATE users SET email = $1, password = $2, lastname = $3, firstname = $4, role = $5, dob = $6, address = $7, profile_picture_url = $8
+           WHERE id = $9`,
+          [email, password, lastname, firstname, role, dob, address, profile_picture_url, req.params.id]
         );
       } else {
         await pool.query(
-          `UPDATE users SET email = $1, lastname = $2, firstname = $3, role = $4, dob = $5, address = $6
-           WHERE id = $7`,
-          [email, lastname, firstname, role, dob, address, req.params.id]
+          `UPDATE users SET email = $1, lastname = $2, firstname = $3, role = $4, dob = $5, address = $6, profile_picture_url = $7
+           WHERE id = $8`,
+          [email, lastname, firstname, role, dob, address, profile_picture_url, req.params.id]
         );
       }
 
