@@ -1,10 +1,10 @@
-import express, { Request, Response } from "express";
-import { createServer as createViteServer } from "vite";
-import { Pool, PoolClient } from "pg";
+import dotenv from "dotenv";
+import express, { type Request, type Response } from "express";
+import fs from "fs";
+import mysql from "mysql2/promise";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
-import dotenv from "dotenv";
+import { createServer as createViteServer } from "vite";
 
 dotenv.config();
 
@@ -12,39 +12,44 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const env = (...keys: string[]) => {
-  for (const key of keys) {
-    const value = process.env[key];
-    if (value && value.length > 0) return value;
-  }
-  return undefined;
+	for (const key of keys) {
+		const value = process.env[key];
+		if (value && value.length > 0) return value;
+	}
+	return undefined;
 };
 
-const pool = new Pool({
-  host: env("DB_HOST", "host") || "localhost",
-  port: parseInt(env("DB_PORT", "port") || "5432", 10),
-  database: env("DB_NAME", "dbname") || "intranet",
-  user: env("DB_USER", "user") || "postgres",
-  password: env("DB_PASSWORD", "password") || "",
+const pool = mysql.createPool({
+	host: env("DB_HOST", "host") || "localhost",
+	port: parseInt(env("DB_PORT", "port") || "3306", 10),
+	database: env("DB_NAME", "dbname") || "intranet",
+	user: env("DB_USER", "user") || "root",
+	password: env("DB_PASSWORD", "password") || "",
+	waitForConnections: true,
+	connectionLimit: 10,
+	queueLimit: 0,
 });
 
 pool.on("error", (err) => {
-  console.error("Unexpected error on idle client", err);
-  process.exit(-1);
+	console.error("Unexpected error on idle client", err);
+	process.exit(-1);
 });
 
-const withTransaction = async <T>(callback: (client: PoolClient) => Promise<T>): Promise<T> => {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await callback(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+const withTransaction = async <T>(
+	callback: (conn: mysql.PoolConnection) => Promise<T>,
+): Promise<T> => {
+	const conn = await pool.getConnection();
+	try {
+		await conn.query("START TRANSACTION");
+		const result = await callback(conn);
+		await conn.query("COMMIT");
+		return result;
+	} catch (e) {
+		await conn.query("ROLLBACK");
+		throw e;
+	} finally {
+		await conn.release();
+	}
 };
 
 const publicPath = path.join(__dirname, "public");
@@ -53,788 +58,985 @@ if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath);
 if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath);
 
 async function initializeDatabase() {
-  const client = await pool.connect();
-  try {
-    await client.query(`
+	const conn = await pool.getConnection();
+	try {
+		await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE,
-        password TEXT,
-        lastname TEXT,
-        firstname TEXT,
-        role TEXT,
-        dob TEXT,
-        address TEXT
-      );
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(255) UNIQUE,
+        password VARCHAR(255),
+        lastname VARCHAR(255),
+        firstname VARCHAR(255),
+        role VARCHAR(255),
+        dob VARCHAR(255),
+        address VARCHAR(255)
+      )
+    `);
 
+		await conn.query(`
       CREATE TABLE IF NOT EXISTS activities (
-        id SERIAL PRIMARY KEY,
-        title TEXT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255),
         description TEXT,
-        image_url TEXT,
-        max_participants INTEGER,
-        deadline TEXT,
-        status TEXT DEFAULT 'pending',
-        created_by INTEGER,
+        image_url VARCHAR(255),
+        max_participants INT,
+        deadline VARCHAR(255),
+        status VARCHAR(255) DEFAULT 'pending',
+        created_by INT,
         FOREIGN KEY(created_by) REFERENCES users(id)
-      );
+      )
+    `);
 
+		await conn.query(`
       CREATE TABLE IF NOT EXISTS sessions (
-        id SERIAL PRIMARY KEY,
-        type TEXT,
-        activity_id INTEGER,
-        start_time TEXT,
-        end_time TEXT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        type VARCHAR(255),
+        activity_id INT,
+        start_time VARCHAR(255),
+        end_time VARCHAR(255),
         FOREIGN KEY(activity_id) REFERENCES activities(id)
-      );
+      )
+    `);
 
+		await conn.query(`
       CREATE TABLE IF NOT EXISTS registrations (
-        id SERIAL PRIMARY KEY,
-        session_id INTEGER,
-        user_id INTEGER,
-        role_at_registration TEXT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT,
+        user_id INT,
+        role_at_registration VARCHAR(255),
         FOREIGN KEY(session_id) REFERENCES sessions(id),
         FOREIGN KEY(user_id) REFERENCES users(id)
-      );
-
-      CREATE TABLE IF NOT EXISTS quera_point_managers (
-        date TEXT PRIMARY KEY,
-        user_id INTEGER,
-        FOREIGN KEY(user_id) REFERENCES users(id)
-      );
-
-      CREATE TABLE IF NOT EXISTS quera_points (
-        id SERIAL PRIMARY KEY,
-        date TEXT NOT NULL,
-        manager_user_id INTEGER NOT NULL,
-        beneficiary_user_id INTEGER NOT NULL,
-        delta INTEGER NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        FOREIGN KEY(manager_user_id) REFERENCES users(id),
-        FOREIGN KEY(beneficiary_user_id) REFERENCES users(id)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_quera_points_date_manager ON quera_points(date, manager_user_id);
+      )
     `);
-    await client.query(`ALTER TABLE quera_points ADD COLUMN IF NOT EXISTS comment TEXT`);
-    console.log("Database tables initialized");
-  } finally {
-    client.release();
-  }
+
+		await conn.query(`
+      CREATE TABLE IF NOT EXISTS quera_point_managers (
+        date VARCHAR(255) PRIMARY KEY,
+        user_id INT,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      )
+    `);
+
+		await conn.query(`
+      CREATE TABLE IF NOT EXISTS quera_points (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        date VARCHAR(255) NOT NULL,
+        manager_user_id INT NOT NULL,
+        beneficiary_user_id INT NOT NULL,
+        delta INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        comment TEXT,
+        FOREIGN KEY(manager_user_id) REFERENCES users(id),
+        FOREIGN KEY(beneficiary_user_id) REFERENCES users(id),
+        INDEX idx_quera_points_date_manager (date, manager_user_id)
+      )
+    `);
+
+		console.log("Database tables initialized");
+	} catch (error) {
+		console.error("Error initializing database:", error);
+	} finally {
+		await conn.release();
+	}
 }
 
 async function seedUsers() {
-  try {
-    const adminResult = await pool.query("SELECT * FROM users WHERE email = $1", ["admin@assoc.fr"]);
-    const admin = adminResult.rows[0];
+	try {
+		const [adminResult] = await pool.query(
+			"SELECT * FROM users WHERE email = ?",
+			["admin@assoc.fr"],
+		);
+		const admin = (adminResult as any)[0];
 
-    if (!admin) {
-      await pool.query(
-        `INSERT INTO users (email, password, lastname, firstname, role, dob, address)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (email) DO NOTHING`,
-        ["admin@assoc.fr", "admin123", "Admin", "Super", "admin", "1980-01-01", "123 Rue de l'Assoc"]
-      );
-      console.log("Admin seeded: admin@assoc.fr / admin123");
-    } else if (admin.password !== "admin123") {
-      await pool.query("UPDATE users SET password = $1 WHERE email = $2", ["admin123", "admin@assoc.fr"]);
-      console.log("Admin password reset to admin123");
-    }
+		if (!admin) {
+			await pool.query(
+				`INSERT INTO users (email, password, lastname, firstname, role, dob, address)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				[
+					"admin@assoc.fr",
+					"admin123",
+					"Admin",
+					"Super",
+					"admin",
+					"1980-01-01",
+					"123 Rue de l'Assoc",
+				],
+			);
+			console.log("Admin seeded: admin@assoc.fr / admin123");
+		} else if (admin.password !== "admin123") {
+			await pool.query("UPDATE users SET password = ? WHERE email = ?", [
+				"admin123",
+				"admin@assoc.fr",
+			]);
+			console.log("Admin password reset to admin123");
+		}
 
-    const roles = ["volunteer", "civic_service", "beneficiary"];
-    for (const role of roles) {
-      const countResult = await pool.query("SELECT COUNT(*) as count FROM users WHERE role = $1", [role]);
-      const count = parseInt(countResult.rows[0].count, 10);
+		const roles = ["volunteer", "civic_service", "beneficiary"];
+		for (const role of roles) {
+			const [countResult] = await pool.query(
+				"SELECT COUNT(*) as count FROM users WHERE role = ?",
+				[role],
+			);
+			const count = parseInt((countResult as any)[0].count, 10);
 
-      if (count < 5) {
-        for (let i = count + 1; i <= 5; i++) {
-          await pool.query(
-            `INSERT INTO users (email, password, lastname, firstname, role, dob, address)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (email) DO NOTHING`,
-            [
-              `test_${role}_${i}@assoc.fr`,
-              "password123",
-              `Nom${i}`,
-              `Test${role.charAt(0).toUpperCase() + role.slice(1)}`,
-              role,
-              "2000-01-01",
-              `${i} Rue du Test`,
-            ]
-          );
-        }
-        console.log(`Seeded 5 ${role}s`);
-      }
-    }
-  } catch (e: any) {
-    console.error("Seeding error:", e.message);
-  }
+			if (count < 5) {
+				for (let i = count + 1; i <= 5; i++) {
+					await pool.query(
+						`INSERT INTO users (email, password, lastname, firstname, role, dob, address)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+						[
+							`test_${role}_${i}@assoc.fr`,
+							"password123",
+							`Nom${i}`,
+							`Test${role.charAt(0).toUpperCase() + role.slice(1)}`,
+							role,
+							"2000-01-01",
+							`${i} Rue du Test`,
+						],
+					);
+				}
+				console.log(`Seeded 5 ${role}s`);
+			}
+		}
+	} catch (e: any) {
+		console.error("Seeding error:", e.message);
+	}
 }
 
 async function startServer() {
-  await initializeDatabase();
-  await seedUsers();
+	await initializeDatabase();
+	await seedUsers();
 
-  const app = express();
-  const PORT = 3000;
+	const app = express();
+	const PORT = 3000;
 
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ limit: "10mb", extended: true }));
+	app.use(express.json({ limit: "10mb" }));
+	app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-  app.use("/uploads", express.static(uploadsPath));
+	app.use("/uploads", express.static(uploadsPath));
 
-  app.post("/api/upload", async (req: Request, res: Response) => {
-    try {
-      const { image, name } = req.body;
-      if (!image) return res.status(400).json({ error: "Pas d'image" });
+	app.post("/api/upload", async (req: Request, res: Response) => {
+		try {
+			const { image, name } = req.body;
+			if (!image) return res.status(400).json({ error: "Pas d'image" });
 
-      const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(base64Data, "base64");
-      const fileName = `${Date.now()}-${name || "upload"}`;
-      const filePath = path.join(uploadsPath, fileName);
+			const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+			const buffer = Buffer.from(base64Data, "base64");
+			const fileName = `${Date.now()}-${name || "upload"}`;
+			const filePath = path.join(uploadsPath, fileName);
 
-      fs.writeFileSync(filePath, buffer);
-      res.json({ url: `/uploads/${fileName}` });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			fs.writeFileSync(filePath, buffer);
+			res.json({ url: `/uploads/${fileName}` });
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/login", async (req: Request, res: Response) => {
-    try {
-      const { email, password } = req.body;
-      const result = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]);
-      const user = result.rows[0];
+	app.post("/api/login", async (req: Request, res: Response) => {
+		try {
+			const { email, password } = req.body;
+			const [result] = await pool.query(
+				"SELECT * FROM users WHERE email = ? AND password = ?",
+				[email, password],
+			);
+			const user = (result as any)[0];
 
-      if (user) {
-        const { password: _password, ...userWithoutPassword } = user;
-        res.json(userWithoutPassword);
-      } else {
-        res.status(401).json({ error: "Identifiants invalides" });
-      }
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			if (user) {
+				const { password: _password, ...userWithoutPassword } = user;
+				res.json(userWithoutPassword);
+			} else {
+				res.status(401).json({ error: "Identifiants invalides" });
+			}
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/users", async (_req: Request, res: Response) => {
-    try {
-      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address FROM users");
-      res.json(result.rows);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+	app.get("/api/users", async (_req: Request, res: Response) => {
+		try {
+			const [result] = await pool.query(
+				"SELECT id, email, lastname, firstname, role, dob, address FROM users",
+			);
+			res.json(result);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/users", async (req: Request, res: Response) => {
-    try {
-      const { email, password, lastname, firstname, role, dob, address } = req.body;
-      const result = await pool.query(
-        `INSERT INTO users (email, password, lastname, firstname, role, dob, address)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [email, password || "password123", lastname, firstname, role, dob, address]
-      );
-      res.json({ id: result.rows[0].id });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+	app.post("/api/users", async (req: Request, res: Response) => {
+		try {
+			const { email, password, lastname, firstname, role, dob, address } =
+				req.body;
+			const [result] = await pool.query(
+				`INSERT INTO users (email, password, lastname, firstname, role, dob, address)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				[
+					email,
+					password || "password123",
+					lastname,
+					firstname,
+					role,
+					dob,
+					address,
+				],
+			);
+			res.json({ id: (result as any).insertId });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.delete("/api/users/batch", async (req: Request, res: Response) => {
-    try {
-      const { ids } = req.body;
-      if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: "IDs invalides" });
+	app.delete("/api/users/batch", async (req: Request, res: Response) => {
+		try {
+			const { ids } = req.body;
+			if (!ids || !Array.isArray(ids))
+				return res.status(400).json({ error: "IDs invalides" });
 
-      await withTransaction(async (client) => {
-        for (const id of ids) {
-          const numericId = Number(id);
-          await client.query("DELETE FROM registrations WHERE user_id = $1", [numericId]);
+			await withTransaction(async (conn) => {
+				for (const id of ids) {
+					const numericId = Number(id);
+					await conn.query("DELETE FROM registrations WHERE user_id = ?", [
+						numericId,
+					]);
 
-          const activitiesResult = await client.query("SELECT id FROM activities WHERE created_by = $1", [numericId]);
-          const activities = activitiesResult.rows;
+					const [activitiesResult] = await conn.query(
+						"SELECT id FROM activities WHERE created_by = ?",
+						[numericId],
+					);
+					const activities = activitiesResult as any;
 
-          for (const act of activities) {
-            await client.query(
-              "DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = $1)",
-              [act.id]
-            );
-            await client.query("DELETE FROM sessions WHERE activity_id = $1", [act.id]);
-          }
+					for (const act of activities) {
+						await conn.query(
+							"DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = ?)",
+							[act.id],
+						);
+						await conn.query("DELETE FROM sessions WHERE activity_id = ?", [
+							act.id,
+						]);
+					}
 
-          await client.query("DELETE FROM activities WHERE created_by = $1", [numericId]);
-          await client.query("DELETE FROM users WHERE id = $1", [numericId]);
-        }
-      });
+					await conn.query("DELETE FROM activities WHERE created_by = ?", [
+						numericId,
+					]);
+					await conn.query("DELETE FROM users WHERE id = ?", [numericId]);
+				}
+			});
 
-      res.json({ success: true });
-    } catch {
-      res.status(500).json({ error: "Erreur lors de la suppression" });
-    }
-  });
+			res.json({ success: true });
+		} catch {
+			res.status(500).json({ error: "Erreur lors de la suppression" });
+		}
+	});
 
-  app.delete("/api/users/:id", async (req: Request, res: Response) => {
-    try {
-      const userId = req.params.id;
+	app.delete("/api/users/:id", async (req: Request, res: Response) => {
+		try {
+			const userId = req.params.id;
 
-      await withTransaction(async (client) => {
-        await client.query("DELETE FROM registrations WHERE user_id = $1", [userId]);
+			await withTransaction(async (conn) => {
+				await conn.query("DELETE FROM registrations WHERE user_id = ?", [
+					userId,
+				]);
 
-        const activitiesResult = await client.query("SELECT id FROM activities WHERE created_by = $1", [userId]);
-        const activities = activitiesResult.rows;
+				const [activitiesResult] = await conn.query(
+					"SELECT id FROM activities WHERE created_by = ?",
+					[userId],
+				);
+				const activities = activitiesResult as any;
 
-        for (const act of activities) {
-          await client.query(
-            "DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = $1)",
-            [act.id]
-          );
-          await client.query("DELETE FROM sessions WHERE activity_id = $1", [act.id]);
-        }
+				for (const act of activities) {
+					await conn.query(
+						"DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = ?)",
+						[act.id],
+					);
+					await conn.query("DELETE FROM sessions WHERE activity_id = ?", [
+						act.id,
+					]);
+				}
 
-        await client.query("DELETE FROM activities WHERE created_by = $1", [userId]);
-        await client.query("DELETE FROM sessions WHERE type = 'room_booking' AND id NOT IN (SELECT session_id FROM registrations)");
-        await client.query("DELETE FROM users WHERE id = $1", [userId]);
-      });
+				await conn.query("DELETE FROM activities WHERE created_by = ?", [
+					userId,
+				]);
+				await conn.query(
+					"DELETE FROM sessions WHERE type = 'room_booking' AND id NOT IN (SELECT session_id FROM registrations)",
+				);
+				await conn.query("DELETE FROM users WHERE id = ?", [userId]);
+			});
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/users/:id", async (req: Request, res: Response) => {
-    try {
-      const result = await pool.query("SELECT id, email, lastname, firstname, role, dob, address FROM users WHERE id = $1", [
-        req.params.id,
-      ]);
-      const user = result.rows[0];
+	app.get("/api/users/:id", async (req: Request, res: Response) => {
+		try {
+			const [result] = await pool.query(
+				"SELECT id, email, lastname, firstname, role, dob, address FROM users WHERE id = ?",
+				[req.params.id],
+			);
+			const user = (result as any)[0];
 
-      if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
-      res.json(user);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			if (!user)
+				return res.status(404).json({ error: "Utilisateur non trouvé" });
+			res.json(user);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.patch("/api/users/:id", async (req: Request, res: Response) => {
-    try {
-      const { email, password, lastname, firstname, role, dob, address } = req.body;
+	app.patch("/api/users/:id", async (req: Request, res: Response) => {
+		try {
+			const { email, password, lastname, firstname, role, dob, address } =
+				req.body;
 
-      if (password) {
-        await pool.query(
-          `UPDATE users SET email = $1, password = $2, lastname = $3, firstname = $4, role = $5, dob = $6, address = $7
-           WHERE id = $8`,
-          [email, password, lastname, firstname, role, dob, address, req.params.id]
-        );
-      } else {
-        await pool.query(
-          `UPDATE users SET email = $1, lastname = $2, firstname = $3, role = $4, dob = $5, address = $6
-           WHERE id = $7`,
-          [email, lastname, firstname, role, dob, address, req.params.id]
-        );
-      }
+			if (password) {
+				await pool.query(
+					`UPDATE users SET email = ?, password = ?, lastname = ?, firstname = ?, role = ?, dob = ?, address = ?
+           WHERE id = ?`,
+					[
+						email,
+						password,
+						lastname,
+						firstname,
+						role,
+						dob,
+						address,
+						req.params.id,
+					],
+				);
+			} else {
+				await pool.query(
+					`UPDATE users SET email = ?, lastname = ?, firstname = ?, role = ?, dob = ?, address = ?
+           WHERE id = ?`,
+					[email, lastname, firstname, role, dob, address, req.params.id],
+				);
+			}
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/activities", async (_req: Request, res: Response) => {
-    try {
-      const result = await pool.query(`
-        SELECT a.*, u.firstname || ' ' || u.lastname as creator_name
+	app.get("/api/activities", async (_req: Request, res: Response) => {
+		try {
+			const [result] = await pool.query(`
+        SELECT a.*, CONCAT(u.firstname, ' ', u.lastname) as creator_name
         FROM activities a
         JOIN users u ON a.created_by = u.id
       `);
-      res.json(result.rows);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json(result);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/activities", async (req: Request, res: Response) => {
-    try {
-      const { title, description, image_url, max_participants, deadline, created_by, start_time, end_time } = req.body;
+	app.post("/api/activities", async (req: Request, res: Response) => {
+		try {
+			const {
+				title,
+				description,
+				image_url,
+				max_participants,
+				deadline,
+				created_by,
+				start_time,
+				end_time,
+			} = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
-      const existingResult = await pool.query(
-        `SELECT COUNT(*) as count FROM sessions
-         WHERE type = 'activity' AND DATE(start_time::timestamp) = $1::date`,
-        [sessionDate]
-      );
+			const sessionDate = new Date(start_time).toISOString().split("T")[0];
+			const [existingResult] = await pool.query(
+				`SELECT COUNT(*) as count FROM sessions
+         WHERE type = 'activity' AND DATE(start_time) = ?`,
+				[sessionDate],
+			);
 
-      if (parseInt(existingResult.rows[0].count, 10) > 0) {
-        return res.status(400).json({ error: "Une activité existe déjà à cette date." });
-      }
+			if (parseInt((existingResult as any)[0].count, 10) > 0) {
+				return res
+					.status(400)
+					.json({ error: "Une activité existe déjà à cette date." });
+			}
 
-      const id = await withTransaction(async (client) => {
-        const activityResult = await client.query(
-          `INSERT INTO activities (title, description, image_url, max_participants, deadline, created_by, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING id`,
-          [title, description, image_url, max_participants, deadline, created_by]
-        );
+			const id = await withTransaction(async (conn) => {
+				const [activityResult] = await conn.query(
+					`INSERT INTO activities (title, description, image_url, max_participants, deadline, created_by, status)
+           VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+					[
+						title,
+						description,
+						image_url,
+						max_participants,
+						deadline,
+						created_by,
+					],
+				);
 
-        const activityId = activityResult.rows[0].id;
+				const activityId = (activityResult as any).insertId;
 
-        await client.query(
-          `INSERT INTO sessions (type, activity_id, start_time, end_time)
-           VALUES ('activity', $1, $2, $3)`,
-          [activityId, start_time, end_time]
-        );
+				await conn.query(
+					`INSERT INTO sessions (type, activity_id, start_time, end_time)
+           VALUES (?, ?, ?, ?)`,
+					["activity", activityId, start_time, end_time],
+				);
 
-        return activityId;
-      });
+				return activityId;
+			});
 
-      res.json({ id });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ id });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.patch("/api/activities/:id/status", async (req: Request, res: Response) => {
-    try {
-      const { status } = req.body;
-      await pool.query("UPDATE activities SET status = $1 WHERE id = $2", [status, req.params.id]);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+	app.patch(
+		"/api/activities/:id/status",
+		async (req: Request, res: Response) => {
+			try {
+				const { status } = req.body;
+				await pool.query("UPDATE activities SET status = ? WHERE id = ?", [
+					status,
+					req.params.id,
+				]);
+				res.json({ success: true });
+			} catch (e: any) {
+				res.status(500).json({ error: e.message });
+			}
+		},
+	);
 
-  app.delete("/api/activities/:id", async (req: Request, res: Response) => {
-    try {
-      await withTransaction(async (client) => {
-        await client.query("DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = $1)", [
-          req.params.id,
-        ]);
-        await client.query("DELETE FROM sessions WHERE activity_id = $1", [req.params.id]);
-        await client.query("DELETE FROM activities WHERE id = $1", [req.params.id]);
-      });
+	app.delete("/api/activities/:id", async (req: Request, res: Response) => {
+		try {
+			await withTransaction(async (conn) => {
+				await conn.query(
+					"DELETE FROM registrations WHERE session_id IN (SELECT id FROM sessions WHERE activity_id = ?)",
+					[req.params.id],
+				);
+				await conn.query("DELETE FROM sessions WHERE activity_id = ?", [
+					req.params.id,
+				]);
+				await conn.query("DELETE FROM activities WHERE id = ?", [
+					req.params.id,
+				]);
+			});
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/sessions", async (_req: Request, res: Response) => {
-    try {
-      const sessionsResult = await pool.query(`
+	app.get("/api/sessions", async (_req: Request, res: Response) => {
+		try {
+			const [sessionsResult] = await pool.query(`
         SELECT s.*, a.title, a.description, a.status, a.max_participants, a.image_url, a.deadline
         FROM sessions s
         LEFT JOIN activities a ON s.activity_id = a.id
       `);
 
-      const sessionsWithParticipants = await Promise.all(
-        sessionsResult.rows.map(async (s: any) => {
-          const participantsResult = await pool.query(
-            `SELECT r.user_id, r.role_at_registration, u.firstname, u.lastname, u.role
+			const sessionsWithParticipants = await Promise.all(
+				(sessionsResult as any).map(async (s: any) => {
+					const [participantsResult] = await pool.query(
+						`SELECT r.user_id, r.role_at_registration, u.firstname, u.lastname, u.role
              FROM registrations r
              JOIN users u ON r.user_id = u.id
-             WHERE r.session_id = $1`,
-            [s.id]
-          );
-          return { ...s, participants: participantsResult.rows };
-        })
-      );
+             WHERE r.session_id = ?`,
+						[s.id],
+					);
+					return { ...s, participants: participantsResult };
+				}),
+			);
 
-      res.json(sessionsWithParticipants);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json(sessionsWithParticipants);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/sessions/homework", async (req: Request, res: Response) => {
-    try {
-      const { start_time, end_time } = req.body;
+	app.post("/api/sessions/homework", async (req: Request, res: Response) => {
+		try {
+			const { start_time, end_time } = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
-      const existingResult = await pool.query(
-        `SELECT COUNT(*) as count FROM sessions
-         WHERE type = 'homework_help' AND DATE(start_time::timestamp) = $1::date`,
-        [sessionDate]
-      );
+			const sessionDate = new Date(start_time).toISOString().split("T")[0];
+			const [existingResult] = await pool.query(
+				`SELECT COUNT(*) as count FROM sessions
+         WHERE type = 'homework_help' AND DATE(start_time) = ?`,
+				[sessionDate],
+			);
 
-      if (parseInt(existingResult.rows[0].count, 10) > 0) {
-        return res.status(400).json({ error: "Une session d'aide aux devoirs existe déjà à cette date." });
-      }
+			if (parseInt((existingResult as any)[0].count, 10) > 0) {
+				return res.status(400).json({
+					error: "Une session d'aide aux devoirs existe déjà à cette date.",
+				});
+			}
 
-      const result = await pool.query(
-        `INSERT INTO sessions (type, start_time, end_time)
-         VALUES ('homework_help', $1, $2) RETURNING id`,
-        [start_time, end_time]
-      );
+			const [result] = await pool.query(
+				`INSERT INTO sessions (type, start_time, end_time)
+         VALUES (?, ?, ?)`,
+				["homework_help", start_time, end_time],
+			);
 
-      res.json({ id: result.rows[0].id });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ id: (result as any).insertId });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/sessions/room", async (req: Request, res: Response) => {
-    try {
-      const { start_time, end_time, user_id } = req.body;
+	app.post("/api/sessions/room", async (req: Request, res: Response) => {
+		try {
+			const { start_time, end_time, user_id } = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
-      const existingResult = await pool.query(
-        `SELECT COUNT(*) as count FROM sessions
-         WHERE type = 'room_booking' AND DATE(start_time::timestamp) = $1::date`,
-        [sessionDate]
-      );
+			const sessionDate = new Date(start_time).toISOString().split("T")[0];
+			const [existingResult] = await pool.query(
+				`SELECT COUNT(*) as count FROM sessions
+         WHERE type = 'room_booking' AND DATE(start_time) = ?`,
+				[sessionDate],
+			);
 
-      if (parseInt(existingResult.rows[0].count, 10) > 0) {
-        return res.status(400).json({ error: "Une réservation de local existe déjà à cette date." });
-      }
+			if (parseInt((existingResult as any)[0].count, 10) > 0) {
+				return res.status(400).json({
+					error: "Une réservation de local existe déjà à cette date.",
+				});
+			}
 
-      const sessionId = await withTransaction(async (client) => {
-        const result = await client.query(
-          `INSERT INTO sessions (type, start_time, end_time)
-           VALUES ('room_booking', $1, $2) RETURNING id`,
-          [start_time, end_time]
-        );
+			const sessionId = await withTransaction(async (conn) => {
+				const [result] = await conn.query(
+					`INSERT INTO sessions (type, start_time, end_time)
+           VALUES (?, ?, ?)`,
+					["room_booking", start_time, end_time],
+				);
 
-        const id = result.rows[0].id;
+				const id = (result as any).insertId;
 
-        await client.query(
-          `INSERT INTO registrations (session_id, user_id, role_at_registration)
-           VALUES ($1, $2, 'adherent')`,
-          [id, user_id]
-        );
+				await conn.query(
+					`INSERT INTO registrations (session_id, user_id, role_at_registration)
+           VALUES (?, ?, ?)`,
+					[id, user_id, "adherent"],
+				);
 
-        return id;
-      });
+				return id;
+			});
 
-      res.json({ id: sessionId });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ id: sessionId });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/sessions/homework/batch", async (req: Request, res: Response) => {
-    try {
-      const { start_date } = req.body;
-      const start = new Date(start_date);
+	app.post(
+		"/api/sessions/homework/batch",
+		async (req: Request, res: Response) => {
+			try {
+				const { start_date } = req.body;
+				const start = new Date(start_date);
 
-      await withTransaction(async (client) => {
-        for (let i = 0; i < 5; i++) {
-          const currentDate = new Date(start);
-          currentDate.setDate(currentDate.getDate() + i);
+				await withTransaction(async (conn) => {
+					for (let i = 0; i < 5; i++) {
+						const currentDate = new Date(start);
+						currentDate.setDate(currentDate.getDate() + i);
 
-          const startTimeStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 16, 30).toISOString();
-          const endTimeStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 20, 0).toISOString();
+						const startTimeStr = new Date(
+							currentDate.getFullYear(),
+							currentDate.getMonth(),
+							currentDate.getDate(),
+							16,
+							30,
+						).toISOString();
+						const endTimeStr = new Date(
+							currentDate.getFullYear(),
+							currentDate.getMonth(),
+							currentDate.getDate(),
+							20,
+							0,
+						).toISOString();
 
-          const existsResult = await client.query("SELECT COUNT(*) as count FROM sessions WHERE type = 'homework_help' AND start_time = $1", [
-            startTimeStr,
-          ]);
+						const [existsResult] = await conn.query(
+							"SELECT COUNT(*) as count FROM sessions WHERE type = 'homework_help' AND start_time = ?",
+							[startTimeStr],
+						);
 
-          if (parseInt(existsResult.rows[0].count, 10) === 0) {
-            await client.query(`INSERT INTO sessions (type, start_time, end_time) VALUES ('homework_help', $1, $2)`, [startTimeStr, endTimeStr]);
-          }
-        }
-      });
+						if (parseInt((existsResult as any)[0].count, 10) === 0) {
+							await conn.query(
+								`INSERT INTO sessions (type, start_time, end_time) VALUES (?, ?, ?)`,
+								["homework_help", startTimeStr, endTimeStr],
+							);
+						}
+					}
+				});
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+				res.json({ success: true });
+			} catch (e: any) {
+				res.status(400).json({ error: e.message });
+			}
+		},
+	);
 
-  app.patch("/api/sessions/:id", async (req: Request, res: Response) => {
-    try {
-      const { start_time, end_time } = req.body;
-      await pool.query("UPDATE sessions SET start_time = $1, end_time = $2 WHERE id = $3", [start_time, end_time, req.params.id]);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+	app.patch("/api/sessions/:id", async (req: Request, res: Response) => {
+		try {
+			const { start_time, end_time } = req.body;
+			await pool.query(
+				"UPDATE sessions SET start_time = ?, end_time = ? WHERE id = ?",
+				[start_time, end_time, req.params.id],
+			);
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.delete("/api/sessions/:id", async (req: Request, res: Response) => {
-    try {
-      await withTransaction(async (client) => {
-        await client.query("DELETE FROM registrations WHERE session_id = $1", [req.params.id]);
-        await client.query("DELETE FROM sessions WHERE id = $1", [req.params.id]);
-      });
+	app.delete("/api/sessions/:id", async (req: Request, res: Response) => {
+		try {
+			await withTransaction(async (conn) => {
+				await conn.query("DELETE FROM registrations WHERE session_id = ?", [
+					req.params.id,
+				]);
+				await conn.query("DELETE FROM sessions WHERE id = ?", [req.params.id]);
+			});
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/registrations", async (req: Request, res: Response) => {
-    try {
-      const { session_id, user_id, role_at_registration } = req.body;
+	app.post("/api/registrations", async (req: Request, res: Response) => {
+		try {
+			const { session_id, user_id, role_at_registration } = req.body;
 
-      const sessionResult = await pool.query("SELECT * FROM sessions WHERE id = $1", [session_id]);
-      const session = sessionResult.rows[0];
-      if (!session) return res.status(404).json({ error: "Session non trouvée." });
+			const [sessionResult] = await pool.query(
+				"SELECT * FROM sessions WHERE id = ?",
+				[session_id],
+			);
+			const session = (sessionResult as any)[0];
+			if (!session)
+				return res.status(404).json({ error: "Session non trouvée." });
 
-      if (session.type === "room_booking") {
-        return res.status(400).json({ error: "Les réservations du local ne permettent pas d'inscription." });
-      }
+			if (session.type === "room_booking") {
+				return res.status(400).json({
+					error: "Les réservations du local ne permettent pas d'inscription.",
+				});
+			}
 
-      const participantsResult = await pool.query("SELECT * FROM registrations WHERE session_id = $1", [session_id]);
-      const participants = participantsResult.rows;
+			const [participantsResult] = await pool.query(
+				"SELECT * FROM registrations WHERE session_id = ?",
+				[session_id],
+			);
+			const participants = participantsResult as any;
 
-      if (session.type === "homework_help") {
-        if (role_at_registration === "volunteer") {
-          const volunteerCount = participants.filter((p: any) => p.role_at_registration === "volunteer").length;
-          if (volunteerCount >= 3) {
-            return res.status(400).json({ error: "Maximum de 3 bénévoles atteint pour cette permanence." });
-          }
-        } else if (role_at_registration === "beneficiary") {
-          const beneficiaryCount = participants.filter((p: any) => p.role_at_registration === "beneficiary").length;
-          if (beneficiaryCount >= 15) {
-            return res.status(400).json({ error: "Maximum de 15 jeunes atteint pour cette permanence." });
-          }
-        }
-      }
+			if (session.type === "homework_help") {
+				if (role_at_registration === "volunteer") {
+					const volunteerCount = participants.filter(
+						(p: any) => p.role_at_registration === "volunteer",
+					).length;
+					if (volunteerCount >= 3) {
+						return res.status(400).json({
+							error: "Maximum de 3 bénévoles atteint pour cette permanence.",
+						});
+					}
+				} else if (role_at_registration === "beneficiary") {
+					const beneficiaryCount = participants.filter(
+						(p: any) => p.role_at_registration === "beneficiary",
+					).length;
+					if (beneficiaryCount >= 15) {
+						return res.status(400).json({
+							error: "Maximum de 15 jeunes atteint pour cette permanence.",
+						});
+					}
+				}
+			}
 
-      if (session.type === "activity") {
-        const activityResult = await pool.query("SELECT * FROM activities WHERE id = $1", [session.activity_id]);
-        const activity = activityResult.rows[0];
+			if (session.type === "activity") {
+				const [activityResult] = await pool.query(
+					"SELECT * FROM activities WHERE id = ?",
+					[session.activity_id],
+				);
+				const activity = (activityResult as any)[0];
 
-        if (activity && participants.length >= activity.max_participants) {
-          return res.status(400).json({ error: "Nombre maximum de participants atteint." });
-        }
-      }
+				if (activity && participants.length >= activity.max_participants) {
+					return res
+						.status(400)
+						.json({ error: "Nombre maximum de participants atteint." });
+				}
+			}
 
-      const existingResult = await pool.query("SELECT * FROM registrations WHERE session_id = $1 AND user_id = $2", [session_id, user_id]);
-      if (existingResult.rows.length > 0) {
-        return res.status(400).json({ error: "Déjà inscrit à cette session." });
-      }
+			const [existingResult] = await pool.query(
+				"SELECT * FROM registrations WHERE session_id = ? AND user_id = ?",
+				[session_id, user_id],
+			);
+			if ((existingResult as any).length > 0) {
+				return res.status(400).json({ error: "Déjà inscrit à cette session." });
+			}
 
-      await pool.query(
-        `INSERT INTO registrations (session_id, user_id, role_at_registration)
-         VALUES ($1, $2, $3)`,
-        [session_id, user_id, role_at_registration]
-      );
+			await pool.query(
+				`INSERT INTO registrations (session_id, user_id, role_at_registration)
+         VALUES (?, ?, ?)`,
+				[session_id, user_id, role_at_registration],
+			);
 
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.delete("/api/registrations", async (req: Request, res: Response) => {
-    try {
-      const { session_id, user_id } = req.body;
-      await pool.query("DELETE FROM registrations WHERE session_id = $1 AND user_id = $2", [session_id, user_id]);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+	app.delete("/api/registrations", async (req: Request, res: Response) => {
+		try {
+			const { session_id, user_id } = req.body;
+			await pool.query(
+				"DELETE FROM registrations WHERE session_id = ? AND user_id = ?",
+				[session_id, user_id],
+			);
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/quera-point-managers", async (_req: Request, res: Response) => {
-    try {
-      const result = await pool.query(`
+	app.get("/api/quera-point-managers", async (_req: Request, res: Response) => {
+		try {
+			const [result] = await pool.query(`
         SELECT q.date, q.user_id, u.firstname, u.lastname, u.role
         FROM quera_point_managers q
         JOIN users u ON q.user_id = u.id
       `);
-      res.json(result.rows);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json(result);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/quera-point-managers", async (req: Request, res: Response) => {
-    try {
-      const { date, user_id } = req.body;
-      if (!user_id) {
-        await pool.query("DELETE FROM quera_point_managers WHERE date = $1", [date]);
-      } else {
-        await pool.query(
-          `INSERT INTO quera_point_managers (date, user_id) 
-           VALUES ($1, $2) 
-           ON CONFLICT (date) DO UPDATE SET user_id = EXCLUDED.user_id`,
-          [date, user_id]
-        );
-      }
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+	app.post("/api/quera-point-managers", async (req: Request, res: Response) => {
+		try {
+			const { date, user_id } = req.body;
+			if (!user_id) {
+				await pool.query("DELETE FROM quera_point_managers WHERE date = ?", [
+					date,
+				]);
+			} else {
+				await pool.query(
+					`INSERT INTO quera_point_managers (date, user_id) 
+           VALUES (?, ?) 
+           ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+					[date, user_id],
+				);
+			}
+			res.json({ success: true });
+		} catch (e: any) {
+			res.status(400).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/quera-points", async (req: Request, res: Response) => {
-    try {
-      const date = String(req.query.date || "");
-      const managerUserIdRaw = req.query.manager_user_id;
-      const managerUserId = managerUserIdRaw !== undefined ? Number(managerUserIdRaw) : null;
-      if (!date) return res.status(400).json({ error: "date requise" });
+	app.get("/api/quera-points", async (req: Request, res: Response) => {
+		try {
+			const date = String(req.query.date || "");
+			const managerUserIdRaw = req.query.manager_user_id;
+			const managerUserId =
+				managerUserIdRaw !== undefined ? Number(managerUserIdRaw) : null;
+			if (!date) return res.status(400).json({ error: "date requise" });
 
-      const params: any[] = [date];
-      let managerWhere = "";
-      if (managerUserId !== null && !Number.isNaN(managerUserId)) {
-        params.push(managerUserId);
-        managerWhere = " AND manager_user_id = $2";
-      }
+			const params: any[] = [date];
+			let managerWhere = "";
+			if (managerUserId !== null && !Number.isNaN(managerUserId)) {
+				params.push(managerUserId);
+				managerWhere = " AND manager_user_id = ?";
+			}
 
-      const totalsResult = await pool.query(
-        `SELECT COALESCE(SUM(delta), 0) AS total
+			const [totalsResult] = await pool.query(
+				`SELECT COALESCE(SUM(delta), 0) AS total
          FROM quera_points
-         WHERE date = $1${managerWhere}`,
-        params
-      );
+         WHERE date = ?${managerWhere}`,
+				params,
+			);
 
-      const perBeneficiaryResult = await pool.query(
-        `SELECT qp.beneficiary_user_id AS user_id,
+			const [perBeneficiaryResult] = await pool.query(
+				`SELECT qp.beneficiary_user_id AS user_id,
                 COALESCE(SUM(qp.delta), 0) AS points,
                 u.firstname, u.lastname
          FROM quera_points qp
          JOIN users u ON u.id = qp.beneficiary_user_id
-         WHERE qp.date = $1${managerWhere}
+         WHERE qp.date = ?${managerWhere}
          GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
          ORDER BY points DESC, u.lastname ASC, u.firstname ASC`,
-        params
-      );
+				params,
+			);
 
-      const total = Number(totalsResult.rows[0]?.total ?? 0);
-      const remaining = Math.max(0, 5 - total);
+			const total = Number((totalsResult as any)[0]?.total ?? 0);
+			const remaining = Math.max(0, 5 - total);
 
-      res.json({
-        date,
-        manager_user_id: managerUserId,
-        total,
-        remaining,
-        beneficiaries: perBeneficiaryResult.rows.map((r: any) => ({
-          user_id: Number(r.user_id),
-          firstname: r.firstname,
-          lastname: r.lastname,
-          points: Number(r.points),
-        })),
-      });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+			res.json({
+				date,
+				manager_user_id: managerUserId,
+				total,
+				remaining,
+				beneficiaries: (perBeneficiaryResult as any).map((r: any) => ({
+					user_id: Number(r.user_id),
+					firstname: r.firstname,
+					lastname: r.lastname,
+					points: Number(r.points),
+				})),
+			});
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.get("/api/quera-points/totals", async (_req: Request, res: Response) => {
-    try {
-      const result = await pool.query(
-        `SELECT qp.beneficiary_user_id AS user_id,
+	app.get("/api/quera-points/totals", async (_req: Request, res: Response) => {
+		try {
+			const [result] = await pool.query(
+				`SELECT qp.beneficiary_user_id AS user_id,
                 COALESCE(SUM(qp.delta), 0) AS total_points,
                 u.firstname, u.lastname
          FROM quera_points qp
          JOIN users u ON u.id = qp.beneficiary_user_id
          GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
-         ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`
-      );
-      res.json(result.rows.map((r: any) => ({
-        user_id: Number(r.user_id),
-        firstname: r.firstname,
-        lastname: r.lastname,
-        total_points: Number(r.total_points),
-      })));
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+         ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`,
+			);
+			res.json(
+				(result as any).map((r: any) => ({
+					user_id: Number(r.user_id),
+					firstname: r.firstname,
+					lastname: r.lastname,
+					total_points: Number(r.total_points),
+				})),
+			);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
+	});
 
-  app.post("/api/quera-points", async (req: Request, res: Response) => {
-    try {
-      const { date, manager_user_id, beneficiary_user_id, delta, comment } = req.body;
-      const managerUserId = Number(manager_user_id);
-      const beneficiaryUserId = Number(beneficiary_user_id);
-      const deltaInt = Number(delta);
+	app.post("/api/quera-points", async (req: Request, res: Response) => {
+		try {
+			const { date, manager_user_id, beneficiary_user_id, delta, comment } =
+				req.body;
+			const managerUserId = Number(manager_user_id);
+			const beneficiaryUserId = Number(beneficiary_user_id);
+			const deltaInt = Number(delta);
 
-      if (!date) return res.status(400).json({ error: "date requise" });
-      if (Number.isNaN(managerUserId) || Number.isNaN(beneficiaryUserId) || Number.isNaN(deltaInt)) {
-        return res.status(400).json({ error: "Paramètres invalides" });
-      }
-      if (!Number.isInteger(deltaInt) || deltaInt === 0) {
-        return res.status(400).json({ error: "delta doit être un entier non nul" });
-      }
-      if (Math.abs(deltaInt) > 5) {
-        return res.status(400).json({ error: "delta trop grand" });
-      }
+			if (!date) return res.status(400).json({ error: "date requise" });
+			if (
+				Number.isNaN(managerUserId) ||
+				Number.isNaN(beneficiaryUserId) ||
+				Number.isNaN(deltaInt)
+			) {
+				return res.status(400).json({ error: "Paramètres invalides" });
+			}
+			if (!Number.isInteger(deltaInt) || deltaInt === 0) {
+				return res
+					.status(400)
+					.json({ error: "delta doit être un entier non nul" });
+			}
+			if (Math.abs(deltaInt) > 5) {
+				return res.status(400).json({ error: "delta trop grand" });
+			}
 
-      const managerCheck = await pool.query("SELECT user_id FROM quera_point_managers WHERE date = $1", [date]);
-      const designatedManagerId = managerCheck.rows[0]?.user_id;
-      if (!designatedManagerId || Number(designatedManagerId) !== managerUserId) {
-        return res.status(403).json({ error: "Vous n'êtes pas responsable Quera Point de cette journée." });
-      }
+			const [managerCheck] = await pool.query(
+				"SELECT user_id FROM quera_point_managers WHERE date = ?",
+				[date],
+			);
+			const designatedManagerId = (managerCheck as any)[0]?.user_id;
+			if (
+				!designatedManagerId ||
+				Number(designatedManagerId) !== managerUserId
+			) {
+				return res.status(403).json({
+					error: "Vous n'êtes pas responsable Quera Point de cette journée.",
+				});
+			}
 
-      const beneficiaryPresentResult = await pool.query(
-        `SELECT 1
+			const [beneficiaryPresentResult] = await pool.query(
+				`SELECT 1
          FROM registrations r
          JOIN sessions s ON s.id = r.session_id
          JOIN users u ON u.id = r.user_id
-         WHERE r.user_id = $1
+         WHERE r.user_id = ?
            AND u.role = 'beneficiary'
-           AND DATE(s.start_time::timestamp) = $2::date
+           AND DATE(s.start_time) = ?
          LIMIT 1`,
-        [beneficiaryUserId, date]
-      );
-      if (beneficiaryPresentResult.rows.length === 0) {
-        return res.status(400).json({ error: "Le bénéficiaire n'est pas inscrit à une session aujourd'hui." });
-      }
+				[beneficiaryUserId, date],
+			);
+			if ((beneficiaryPresentResult as any).length === 0) {
+				return res.status(400).json({
+					error: "Le bénéficiaire n'est pas inscrit à une session aujourd'hui.",
+				});
+			}
 
-      const { totalForDay, beneficiaryTotal } = await withTransaction(async (client) => {
-        const totals = await client.query(
-          `SELECT COALESCE(SUM(delta), 0) AS total
+			const { totalForDay, beneficiaryTotal } = await withTransaction(
+				async (conn) => {
+					const [totals] = await conn.query(
+						`SELECT COALESCE(SUM(delta), 0) AS total
            FROM quera_points
-           WHERE date = $1 AND manager_user_id = $2`,
-          [date, managerUserId]
-        );
-        const beneficiaryTotals = await client.query(
-          `SELECT COALESCE(SUM(delta), 0) AS total
+           WHERE date = ? AND manager_user_id = ?`,
+						[date, managerUserId],
+					);
+					const [beneficiaryTotals] = await conn.query(
+						`SELECT COALESCE(SUM(delta), 0) AS total
            FROM quera_points
-           WHERE date = $1 AND manager_user_id = $2 AND beneficiary_user_id = $3`,
-          [date, managerUserId, beneficiaryUserId]
-        );
+           WHERE date = ? AND manager_user_id = ? AND beneficiary_user_id = ?`,
+						[date, managerUserId, beneficiaryUserId],
+					);
 
-        const totalForDayNum = Number(totals.rows[0]?.total ?? 0);
-        const beneficiaryTotalNum = Number(beneficiaryTotals.rows[0]?.total ?? 0);
+					const totalForDayNum = Number((totals as any)[0]?.total ?? 0);
+					const beneficiaryTotalNum = Number(
+						(beneficiaryTotals as any)[0]?.total ?? 0,
+					);
 
-        if (deltaInt > 0 && totalForDayNum + deltaInt > 5) {
-          throw new Error("Budget de points du jour dépassé (max 5).");
-        }
-        if (beneficiaryTotalNum + deltaInt < 0) {
-          throw new Error("Impossible de retirer plus de points que déjà donnés aujourd'hui à ce bénéficiaire.");
-        }
+					if (deltaInt > 0 && totalForDayNum + deltaInt > 5) {
+						throw new Error("Budget de points du jour dépassé (max 5).");
+					}
+					if (beneficiaryTotalNum + deltaInt < 0) {
+						throw new Error(
+							"Impossible de retirer plus de points que déjà donnés aujourd'hui à ce bénéficiaire.",
+						);
+					}
 
-        await client.query(
-          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, comment)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [date, managerUserId, beneficiaryUserId, deltaInt, comment ?? null]
-        );
+					await conn.query(
+						`INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, comment)
+           VALUES (?, ?, ?, ?, ?)`,
+						[date, managerUserId, beneficiaryUserId, deltaInt, comment ?? null],
+					);
 
-        return { totalForDay: totalForDayNum + deltaInt, beneficiaryTotal: beneficiaryTotalNum + deltaInt };
-      });
+					return {
+						totalForDay: totalForDayNum + deltaInt,
+						beneficiaryTotal: beneficiaryTotalNum + deltaInt,
+					};
+				},
+			);
 
-      res.json({ success: true, date, manager_user_id: managerUserId, beneficiary_user_id: beneficiaryUserId, total: totalForDay, beneficiary_total: beneficiaryTotal });
-    } catch (e: any) {
-      const msg = e?.message ?? "Erreur";
-      if (msg.includes("Budget") || msg.includes("Impossible de retirer")) {
-        return res.status(400).json({ error: msg });
-      }
-      res.status(400).json({ error: msg });
-    }
-  });
+			res.json({
+				success: true,
+				date,
+				manager_user_id: managerUserId,
+				beneficiary_user_id: beneficiaryUserId,
+				total: totalForDay,
+				beneficiary_total: beneficiaryTotal,
+			});
+		} catch (e: any) {
+			const msg = e?.message ?? "Erreur";
+			if (msg.includes("Budget") || msg.includes("Impossible de retirer")) {
+				return res.status(400).json({ error: msg });
+			}
+			res.status(400).json({ error: msg });
+		}
+	});
 
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
-  }
+	if (process.env.NODE_ENV !== "production") {
+		const vite = await createViteServer({
+			server: { middlewareMode: true },
+			appType: "spa",
+		});
+		app.use(vite.middlewares);
+	} else {
+		app.use(express.static(path.join(__dirname, "dist")));
+		app.get("*", (_req, res) => {
+			res.sendFile(path.join(__dirname, "dist", "index.html"));
+		});
+	}
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+	app.listen(PORT, "0.0.0.0", () => {
+		console.log(`Server running on http://localhost:${PORT}`);
+	});
 }
 
 startServer().catch((e) => {
-  console.error("Server startup error:", e);
-  process.exit(1);
+	console.error("Server startup error:", e);
+	process.exit(1);
 });
