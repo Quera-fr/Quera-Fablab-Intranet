@@ -12,7 +12,8 @@ import {
   Users
 } from 'lucide-react';
 import { User } from './types';
-
+import { Ticket } from 'lucide-react';
+import { isGoldenTicketActive, goldenClasses, goldenTicketAnimationKey } from './utils/goldenTicket';
 
 import Logo from './components/ui/Logo';
 import LoginPage from './components/auth/LoginPage';
@@ -31,6 +32,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
+  const [showGoldenTicketAnimation, setShowGoldenTicketAnimation] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -46,6 +48,15 @@ export default function App() {
   useEffect(() => {
     if (user?.role === 'admin') {
       fetch('/api/users').then(res => res.json()).then(setTestUsers);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !isGoldenTicketActive(user) || !user.goldenTicket) return;
+    const key = goldenTicketAnimationKey(user.id, user.goldenTicket.year, user.goldenTicket.month);
+    if (!localStorage.getItem(key)) {
+      setShowGoldenTicketAnimation(true);
+      localStorage.setItem(key, '1');
     }
   }, [user]);
 
@@ -153,7 +164,10 @@ export default function App() {
             <div className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
               {!isSidebarCollapsed && (
                 <div className="hidden md:flex items-center gap-3 px-2 py-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden">
-                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-[10px] font-black text-white shrink-0">
+                {/* Avatar expanded */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                    isGoldenTicketActive(user) ? goldenClasses.avatar : 'bg-black text-white'
+                  }`}>
                     {user.firstname[0]}{user.lastname[0]}
                   </div>
                   <div className="min-w-0">
@@ -162,9 +176,12 @@ export default function App() {
                   </div>
                 </div>
               )}
+                {/* Avatar collapsed */}
               {isSidebarCollapsed && (
-                <div className="md:flex hidden w-10 h-10 rounded-full bg-black items-center justify-center text-[10px] font-black text-white shrink-0 mx-auto">
-                  {user.firstname[0]}{user.lastname[0]}
+                <div className={`md:flex hidden w-10 h-10 rounded-full items-center justify-center text-[10px] font-black text-white shrink-0 mx-auto ${
+                  isGoldenTicketActive(user) ? goldenClasses.avatar : 'bg-black'
+                }`}>
+                {user.firstname[0]}{user.lastname[0]}
                 </div>
               )}
               <div className="md:hidden">
@@ -256,6 +273,45 @@ export default function App() {
       <AnimatePresence>
         {showProfile && (
           <ProfileModal user={user} onClose={() => setShowProfile(false)} onUpdate={setUser} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGoldenTicketAnimation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4"
+            onClick={() => setShowGoldenTicketAnimation(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl border-2 border-amber-400 p-10 max-w-sm w-full text-center"
+            >
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="text-6xl mb-4 select-none"
+              >
+                🎟️
+              </motion.div>
+              <h2 className="text-2xl font-black uppercase tracking-tight text-amber-500 mb-2">Golden Ticket !</h2>
+              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mb-6">
+                Tu as été choisi(e) comme bénéficiaire du mois.<br />Bonne chance pour ce mois-ci !
+              </p>
+              <button
+                onClick={() => setShowGoldenTicketAnimation(false)}
+                className="bg-amber-400 hover:bg-amber-500 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-wider transition-colors"
+              >
+                Super !
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -115,8 +115,25 @@ async function initializeDatabase() {
       );
 
       CREATE INDEX IF NOT EXISTS idx_quera_points_date_manager ON quera_points(date, manager_user_id);
+      CREATE TABLE IF NOT EXISTS golden_tickets (
+        id SERIAL PRIMARY KEY,
+        beneficiary_user_id INTEGER NOT NULL,
+        assigned_by_user_id INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        starts_at TEXT NOT NULL,
+        ends_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        FOREIGN KEY(beneficiary_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(assigned_by_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(month, year)
+      );
     `);
     await client.query(`ALTER TABLE quera_points ADD COLUMN IF NOT EXISTS comment TEXT`);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_golden_tickets_one_per_month
+      ON golden_tickets(month, year)
+    `);
     console.log("Database tables initialized");
   } finally {
     client.release();
@@ -208,7 +225,16 @@ async function startServer() {
 
       if (user) {
         const { password: _password, ...userWithoutPassword } = user;
-        res.json(userWithoutPassword);
+
+        const today = new Date().toISOString().split("T")[0];
+        const ticketResult = await pool.query(
+          `SELECT id, month, year, starts_at, ends_at FROM golden_tickets
+           WHERE beneficiary_user_id = $1 AND starts_at <= $2 AND ends_at >= $2`,
+          [user.id, today]
+        );
+        const ticket = ticketResult.rows[0] ?? null;
+
+        res.json({ ...userWithoutPassword, goldenTicket: ticket });
       } else {
         res.status(401).json({ error: "Identifiants invalides" });
       }
@@ -813,6 +839,82 @@ async function startServer() {
         return res.status(400).json({ error: msg });
       }
       res.status(400).json({ error: msg });
+    }
+  });
+
+  // ─── GOLDEN TICKETS ──────────────────────────────────────────────────────────
+  const GOLDEN_TICKET_ASSIGNERS: string[] = ['admin', 'civic_service'];
+
+  app.get("/api/golden-tickets/active", async (_req: Request, res: Response) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const result = await pool.query(
+        `SELECT gt.id, gt.beneficiary_user_id, gt.month, gt.year, gt.starts_at, gt.ends_at,
+              u.firstname, u.lastname
+       FROM golden_tickets gt
+       JOIN users u ON u.id = gt.beneficiary_user_id
+       WHERE gt.starts_at <= $1 AND gt.ends_at >= $1`,
+        [today]
+      );
+      res.json(result.rows[0] ?? null);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/golden-tickets", async (req: Request, res: Response) => {
+    try {
+      const { beneficiary_user_id, assigned_by_user_id, month, year } = req.body;
+
+      if (!beneficiary_user_id || !assigned_by_user_id || !month || !year) {
+        return res.status(400).json({ error: "Paramètres manquants" });
+      }
+
+      // Vérification rôle de l'attribuant
+      const assignerResult = await pool.query("SELECT role FROM users WHERE id = $1", [assigned_by_user_id]);
+      if (!assignerResult.rows[0] || !GOLDEN_TICKET_ASSIGNERS.includes(assignerResult.rows[0].role)) {
+        return res.status(403).json({ error: "Rôle non autorisé à attribuer un golden ticket" });
+      }
+
+      // Vérification que la cible est un bénéficiaire
+      const targetResult = await pool.query("SELECT role FROM users WHERE id = $1", [beneficiary_user_id]);
+      if (!targetResult.rows[0] || targetResult.rows[0].role !== 'beneficiary') {
+        return res.status(400).json({ error: "L'utilisateur cible doit être un bénéficiaire" });
+      }
+
+      const starts_at = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const ends_at = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+
+      const result = await pool.query(
+        `INSERT INTO golden_tickets (beneficiary_user_id, assigned_by_user_id, month, year, starts_at, ends_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (month, year) DO UPDATE
+           SET beneficiary_user_id = EXCLUDED.beneficiary_user_id,
+               assigned_by_user_id = EXCLUDED.assigned_by_user_id,
+               starts_at = EXCLUDED.starts_at,
+               ends_at = EXCLUDED.ends_at,
+               created_at = NOW()
+         RETURNING *`,
+        [beneficiary_user_id, assigned_by_user_id, month, year, starts_at, ends_at]
+      );
+
+      res.json(result.rows[0]);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/golden-tickets/:id", async (req: Request, res: Response) => {
+    try {
+      const { requester_role } = req.body;
+      if (!requester_role || !GOLDEN_TICKET_ASSIGNERS.includes(requester_role)) {
+        return res.status(403).json({ error: "Rôle non autorisé" });
+      }
+      await pool.query("DELETE FROM golden_tickets WHERE id = $1", [req.params.id]);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 
