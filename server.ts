@@ -30,11 +30,6 @@ const pool = mysql.createPool({
 	queueLimit: 0,
 });
 
-pool.on("error", (err) => {
-	console.error("Unexpected error on idle client", err);
-	process.exit(-1);
-});
-
 const withTransaction = async <T>(
 	callback: (conn: mysql.PoolConnection) => Promise<T>,
 ): Promise<T> => {
@@ -280,10 +275,49 @@ async function startServer() {
 
 	app.get("/api/users", async (_req: Request, res: Response) => {
 		try {
+			const today = new Date().toISOString().split("T")[0];
 			const [result] = await pool.query(
-				"SELECT id, email, lastname, firstname, role, dob, address FROM users",
+				`SELECT
+					u.id,
+					u.email,
+					u.lastname,
+					u.firstname,
+					u.role,
+					u.dob,
+					u.address,
+					gt.id AS golden_ticket_id,
+					gt.month AS golden_ticket_month,
+					gt.year AS golden_ticket_year,
+					gt.starts_at AS golden_ticket_starts_at,
+					gt.ends_at AS golden_ticket_ends_at
+				FROM users u
+				LEFT JOIN golden_tickets gt
+					ON gt.beneficiary_user_id = u.id
+					AND gt.starts_at <= ?
+					AND gt.ends_at >= ?`,
+				[today, today],
 			);
-			res.json(result);
+
+			const users = (result as any[]).map((row) => ({
+				id: row.id,
+				email: row.email,
+				lastname: row.lastname,
+				firstname: row.firstname,
+				role: row.role,
+				dob: row.dob,
+				address: row.address,
+				goldenTicket: row.golden_ticket_id
+					? {
+							id: row.golden_ticket_id,
+							month: row.golden_ticket_month,
+							year: row.golden_ticket_year,
+							starts_at: row.golden_ticket_starts_at,
+							ends_at: row.golden_ticket_ends_at,
+					  }
+					: null,
+			}));
+
+			res.json(users);
 		} catch (e: any) {
 			res.status(500).json({ error: e.message });
 		}
@@ -396,14 +430,53 @@ async function startServer() {
 
 	app.get("/api/users/:id", async (req: Request, res: Response) => {
 		try {
+			const today = new Date().toISOString().split("T")[0];
 			const [result] = await pool.query(
-				"SELECT id, email, lastname, firstname, role, dob, address FROM users WHERE id = ?",
-				[req.params.id],
+				`SELECT
+					u.id,
+					u.email,
+					u.lastname,
+					u.firstname,
+					u.role,
+					u.dob,
+					u.address,
+					gt.id AS golden_ticket_id,
+					gt.month AS golden_ticket_month,
+					gt.year AS golden_ticket_year,
+					gt.starts_at AS golden_ticket_starts_at,
+					gt.ends_at AS golden_ticket_ends_at
+				FROM users u
+				LEFT JOIN golden_tickets gt
+					ON gt.beneficiary_user_id = u.id
+					AND gt.starts_at <= ?
+					AND gt.ends_at >= ?
+				WHERE u.id = ?`,
+				[today, today, req.params.id],
 			);
-			const user = (result as any)[0];
+			const row = (result as any)[0];
 
-			if (!user)
+			if (!row)
 				return res.status(404).json({ error: "Utilisateur non trouvé" });
+
+			const user = {
+				id: row.id,
+				email: row.email,
+				lastname: row.lastname,
+				firstname: row.firstname,
+				role: row.role,
+				dob: row.dob,
+				address: row.address,
+				goldenTicket: row.golden_ticket_id
+					? {
+							id: row.golden_ticket_id,
+							month: row.golden_ticket_month,
+							year: row.golden_ticket_year,
+							starts_at: row.golden_ticket_starts_at,
+							ends_at: row.golden_ticket_ends_at,
+					  }
+					: null,
+			};
+
 			res.json(user);
 		} catch (e: any) {
 			res.status(500).json({ error: e.message });
@@ -559,16 +632,49 @@ async function startServer() {
         LEFT JOIN activities a ON s.activity_id = a.id
       `);
 
+			const today = new Date().toISOString().split("T")[0];
+
 			const sessionsWithParticipants = await Promise.all(
 				(sessionsResult as any).map(async (s: any) => {
 					const [participantsResult] = await pool.query(
-						`SELECT r.user_id, r.role_at_registration, u.firstname, u.lastname, u.role
+						`SELECT
+							r.user_id,
+							r.role_at_registration,
+							u.firstname,
+							u.lastname,
+							u.role,
+							gt.id AS golden_ticket_id,
+							gt.month AS golden_ticket_month,
+							gt.year AS golden_ticket_year,
+							gt.starts_at AS golden_ticket_starts_at,
+							gt.ends_at AS golden_ticket_ends_at
              FROM registrations r
              JOIN users u ON r.user_id = u.id
+             LEFT JOIN golden_tickets gt
+               ON gt.beneficiary_user_id = u.id
+              AND gt.starts_at <= ?
+              AND gt.ends_at >= ?
              WHERE r.session_id = ?`,
-						[s.id],
+						[today, today, s.id],
 					);
-					return { ...s, participants: participantsResult };
+							const participants = (participantsResult as any[]).map((p) => ({
+						user_id: p.user_id,
+						role_at_registration: p.role_at_registration,
+						firstname: p.firstname,
+						lastname: p.lastname,
+						role: p.role,
+						goldenTicket: p.golden_ticket_id
+							? {
+									id: p.golden_ticket_id,
+									month: p.golden_ticket_month,
+									year: p.golden_ticket_year,
+									starts_at: p.golden_ticket_starts_at,
+									ends_at: p.golden_ticket_ends_at,
+						  }
+							: null,
+					}));
+
+					return { ...s, participants };
 				}),
 			);
 

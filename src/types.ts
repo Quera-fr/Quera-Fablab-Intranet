@@ -40,6 +40,7 @@ export interface Participant {
   role: Role;
   dob?: string;
   address?: string;
+  goldenTicket?: GoldenTicket | null;
 }
 
 export interface Session {

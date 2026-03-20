@@ -33,7 +33,7 @@ vi.mock('react-select', () => ({
         </select>
     ),
 }));
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import SessionModal from './SessionModal';
 import { User, Session } from '../../../types';
 
@@ -83,7 +83,20 @@ const mockActivitySession: Session = {
     status: 'pending',
     activity_id: 10,
     participants: [
-        { user_id: 2, firstname: 'Ficiary', lastname: 'Bene', role_at_registration: 'beneficiary', registration_date: '2025-09-01' }
+        {
+            user_id: mockAdminUser.id,
+            firstname: "Super",
+            lastname: "Admin",
+            role_at_registration: "volunteer",
+            role: "admin",
+        },
+        {
+            user_id: mockVolunteer.id,
+            firstname: mockVolunteer.firstname,
+            lastname: mockVolunteer.lastname,
+            role_at_registration: "volunteer",
+            role: "volunteer",
+        },
     ]
 };
 
@@ -195,7 +208,7 @@ describe('SessionModal', () => {
     });
 
     it('admin can manually register a beneficiary', async () => {
-        (global.fetch as vi.Mock).mockResolvedValue({ ok: true });
+        (global.fetch as Mock).mockResolvedValue({ ok: true });
 
         // use session with no beneficiaries so we can add 'bene@test.com'
         const emptySession = { ...mockActivitySession, participants: [] };
