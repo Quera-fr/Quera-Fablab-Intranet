@@ -8,6 +8,7 @@ export interface User {
   role: Role;
   dob: string;
   address: string;
+  profile_picture_url?: string;
 }
 
 export interface Activity {
