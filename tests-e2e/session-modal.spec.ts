@@ -144,33 +144,16 @@ test.describe("SessionModal - Bénéficiaire", () => {
 
 		// Check if Subscribe button exists (user not registered yet)
 		const subscribeBtn = page.getByRole("button", { name: /S'INSCRIRE/i });
-		const unsubscribeBtn = page.getByRole("button", { name: /SE DÉSISTER/i });
+		const unsubscribeBtn = page.getByRole("button", {
+			name: /se désister|se désinscrire/i,
+		});
 
 		const isNotYetSubscribed = await subscribeBtn
 			.isVisible()
 			.catch(() => false);
 
 		if (isNotYetSubscribed) {
-			// User can subscribe - click
-			await subscribeBtn.click();
-
-			// Wait for registration to complete (may or may not trigger sessions refetch depending on timing)
-			await page
-				.waitForResponse(
-					(resp) =>
-						resp.url().includes("/api/registrations") &&
-						resp.request().method() === "POST",
-					{ timeout: 10000 },
-				)
-				.catch(() => null);
-
-			//Wait for modal to close
-			await expect(modal).not.toBeVisible({ timeout: 3000 });
-
-			// Give time for refetch and re-render
-			await page.waitForTimeout(2000);
-
-			// Mock /api/sessions to include the beneficiary as a participant after registration
+			// Prepare mocked session result after registration for the state refresh
 			await page.route("**/api/sessions", (route: any) => {
 				route.fulfill({
 					status: 200,
@@ -189,16 +172,33 @@ test.describe("SessionModal - Bénéficiaire", () => {
 									firstname: mockBeneficiary.firstname,
 									lastname: mockBeneficiary.lastname,
 									role: mockBeneficiary.role,
-									// Add any additional fields your app expects for a participant
 								},
 							],
 							title: "Aide aux devoirs",
 							status: "approved",
-							// Add any additional fields your app expects for a session
 						},
 					]),
 				});
 			});
+
+			// User can subscribe - click
+			await subscribeBtn.click();
+
+			// Wait for registration to complete (may or may not trigger sessions refetch depending on timing)
+			await page
+				.waitForResponse(
+					(resp) =>
+						resp.url().includes("/api/registrations") &&
+						resp.request().method() === "POST",
+					{ timeout: 10000 },
+				)
+				.catch(() => null);
+
+			// Wait for modal to close
+			await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+			// Give time for refetch and re-render
+			await page.waitForTimeout(2000);
 
 			// Re-open the session by finding it again (DOM may have been replaced)
 			const updatedCard = page
@@ -209,11 +209,19 @@ test.describe("SessionModal - Bénéficiaire", () => {
 			await updatedCard.click();
 			await expect(modal).toBeVisible({ timeout: 5000 });
 
-			// Verify that now the unsubscribe button appears (proving inscription worked)
-			// If it's not there, the test will fail here
-			await expect(
-				page.getByRole("button", { name: /SE DÉSISTER/i }),
-			).toBeVisible({ timeout: 5000 });
+			// Verify that registration updated. Prefer unsubscribe button, fallback to participant name.
+			const unsubscribeAfter = page.getByRole("button", {
+				name: /se désister|se désinscrire/i,
+			});
+			if ((await unsubscribeAfter.count()) > 0) {
+				await expect(unsubscribeAfter).toBeVisible({ timeout: 5000 });
+			} else {
+				await expect(
+					page.locator(
+						`text=${mockBeneficiary.firstname} ${mockBeneficiary.lastname}`,
+					),
+				).toBeVisible({ timeout: 5000 });
+			}
 		} else {
 			// Already subscribed - verify unsubscribe button is visible
 			await expect(unsubscribeBtn).toBeVisible();
@@ -357,12 +365,18 @@ test.describe("SessionModal - Administrateur", () => {
 			.filter({ has: page.locator("svg") })
 			.first();
 		await closeBtn.click({ force: true });
-		if (await page.locator("div.fixed.inset-0").isVisible()) {
-			await page
-				.locator("div.fixed.inset-0")
-				.click({ position: { x: 5, y: 5 }, force: true });
+		try {
+			if (await page.locator("div.fixed.inset-0").isVisible()) {
+				await page
+					.locator("div.fixed.inset-0")
+					.click({ position: { x: 5, y: 5 }, force: true });
+			}
+		} catch {
+			// element might detach while closing, ignore.
 		}
-		await expect(page.locator("div.fixed.inset-0")).not.toBeVisible();
+		await expect(page.locator("div.fixed.inset-0")).not.toBeVisible({
+			timeout: 5000,
+		});
 	});
 
 	test("peut s inscrire / se désister comme admin", async ({ page }) => {

@@ -141,6 +141,11 @@ async function initializeDatabase() {
 }
 
 async function seedUsers() {
+	if (String(process.env.SEED_USERS || "false").toLowerCase() !== "true") {
+		console.log("SeedUsers skipped (set SEED_USERS=true to enable)");
+		return;
+	}
+
 	try {
 		const [adminResult] = await pool.query(
 			"SELECT * FROM users WHERE email = ?",
@@ -171,33 +176,9 @@ async function seedUsers() {
 			console.log("Admin password reset to admin123");
 		}
 
-		const roles = ["volunteer", "civic_service", "beneficiary"];
-		for (const role of roles) {
-			const [countResult] = await pool.query(
-				"SELECT COUNT(*) as count FROM users WHERE role = ?",
-				[role],
-			);
-			const count = parseInt((countResult as any)[0].count, 10);
-
-			if (count < 5) {
-				for (let i = count + 1; i <= 5; i++) {
-					await pool.query(
-						`INSERT INTO users (email, password, lastname, firstname, role, dob, address)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-						[
-							`test_${role}_${i}@assoc.fr`,
-							"password123",
-							`Nom${i}`,
-							`Test${role.charAt(0).toUpperCase() + role.slice(1)}`,
-							role,
-							"2000-01-01",
-							`${i} Rue du Test`,
-						],
-					);
-				}
-				console.log(`Seeded 5 ${role}s`);
-			}
-		}
+		// Ne plus créer d'utilisateurs de test par défaut
+		// const roles = ["volunteer", "civic_service", "beneficiary"];
+		// ...
 	} catch (e: any) {
 		console.error("Seeding error:", e.message);
 	}
