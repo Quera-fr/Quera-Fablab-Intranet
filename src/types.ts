@@ -17,6 +17,7 @@ export interface User {
   dob: string;
   address: string;
   goldenTicket?: GoldenTicket | null;
+  profile_picture_url?: string;
 }
 
 export interface Activity {

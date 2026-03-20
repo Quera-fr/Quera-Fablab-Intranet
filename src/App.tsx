@@ -7,32 +7,33 @@ import {
   List,
   LogOut,
   Moon,
-  Settings,
   Sun,
-  Users
+  Users,
+  Ticket,
+  UserRound
 } from 'lucide-react';
 import { User } from './types';
-import { Ticket } from 'lucide-react';
 import { isGoldenTicketActive, goldenClasses, goldenTicketAnimationKey } from './utils/goldenTicket';
 
 import Logo from './components/ui/Logo';
 import LoginPage from './components/auth/LoginPage';
 import UserManagement from './components/admin/UserManagement';
-import ProfileModal from './components/profile/ProfileModal';
+import ProfilePage from './components/profile/ProfilePage';
 import CalendarView from './components/calendar/CalendarView';
 import MyRegistrationsView from './components/registrations/MyRegistrationsView';
+import ProfileModal from './components/profile/ProfileModal';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<
-  'planning' | 'civic_calendar' | 'users' | 'my_registrations'
+  'planning' | 'civic_calendar' | 'users' | 'my_registrations' | 'profile'
 >('planning');
-  const [showProfile, setShowProfile] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
   const [showGoldenTicketAnimation, setShowGoldenTicketAnimation] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -185,7 +186,7 @@ export default function App() {
                 </div>
               )}
               <div className="md:hidden">
-                <button onClick={() => setShowProfile(true)} className="p-3 text-zinc-400 hover:text-black dark:hover:text-white transition-all"><Settings size={20} /></button>
+                <button onClick={() => setActiveTab('profile')} className="p-3 text-zinc-400 hover:text-black dark:hover:text-white transition-all"><UserRound size={20} /></button>
               </div>
             </div>
 
@@ -199,11 +200,11 @@ export default function App() {
                   {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
                 <button
-                  onClick={() => setShowProfile(true)}
+                  onClick={() => setActiveTab('profile')}
                   className={`${isSidebarCollapsed ? 'flex' : 'hidden md:block'} p-3 text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
                   title="Profil"
                 >
-                  <Settings size={20} />
+                  <UserRound size={20} />
                 </button>
               </div>
               <button
@@ -245,25 +246,34 @@ export default function App() {
            {/* For now this shows the same calendar; later you can pass special props for Service Civique */}
           <CalendarView user={user} />
           </motion.div>
-        ) : activeTab === 'users' ? (
+          ) : activeTab === 'users' ? (
+          <motion.div
+           key="users"
+           initial={{ opacity: 0, y: 10 }}
+           animate={{ opacity: 1, y: 0 }}
+           exit={{ opacity: 0, y: -10 }}
+             >
+            <UserManagement currentUser={user} />
+         </motion.div>
+          ) : activeTab === 'profile' ? (
+            <motion.div
+            key="profile"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+              >
+             <ProfilePage user={user} onUpdate={setUser} />
+          </motion.div>
+           ) : (
          <motion.div
-          key="users"
+           key="my_registrations"
           initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
+           animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             >
-           <UserManagement currentUser={user} />
-        </motion.div>
-         ) : (
-       <motion.div
-         key="my_registrations"
-        initial={{ opacity: 0, y: 10 }}
-         animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          >
-         <MyRegistrationsView user={user} />
-        </motion.div>
-         )}
+           <MyRegistrationsView user={user} />
+          </motion.div>
+           )}
     </AnimatePresence>
           </div>
         </main>

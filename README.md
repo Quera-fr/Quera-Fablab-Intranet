@@ -14,7 +14,7 @@ Bienvenue sur le dépôt du projet **Intranet Quera-Fablab**. Cette application 
 
 - **Frontend** : React 19, Vite, TailwindCSS v4, Framer Motion, Lucide React.
 - **Backend** : Node.js, Express.js.
-- **Base de données** : PostgreSQL (via `pg`), configurée avec des variables d'environnement.
+- **Base de données** : MySQL (via `mysql2`), configurée avec des variables d'environnement.
 - **Langage** : TypeScript.
 
 ---
@@ -63,7 +63,7 @@ Les profils suivants sont générés (de 1 à 5). Par exemple :
 
 ## 📂 Structure du projet
 
-- server.ts : Point d'entrée principal (Backend Express + connexion PostgreSQL + Vite middleware).
+- server.ts : Point d'entrée principal (Backend Express + connexion MySQL + Vite middleware).
 - src : Code source du Frontend (React, Composants, Pages).
 - uploads : Dossier contenant les images uploadées (généré automatiquement).
-- .env : Variables d'environnement locales pour la connexion PostgreSQL.
+- .env : Variables d'environnement locales pour la connexion MySQL.

@@ -316,109 +316,7 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
                     )}
                   </td>
                 )}
-                {isAdminOrCivic && showGoldenTicketModal && (
-                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-amber-300 dark:border-amber-700"
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-400 flex items-center justify-center">
-                          <Ticket size={20} className="text-white" />
-                        </div>
-                        <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
-                          Golden Ticket
-                        </h3>
-                      </div>
-                      {activeGoldenTicket && (
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mb-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
-                          Ticket actif: {activeGoldenTicket.firstname}{" "}
-                          {activeGoldenTicket.lastname} —{" "}
-                          {String(activeGoldenTicket.month).padStart(2, "0")}/
-                          {activeGoldenTicket.year}
-                        </p>
-                      )}
-                      <div className="space-y-4 mt-4">
-                        <div>
-                          <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
-                            Bénéficiaire
-                          </label>
-                          <select
-                            className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                            value={goldenTargetId ?? ""}
-                            onChange={(e) =>
-                              setGoldenTargetId(Number(e.target.value))
-                            }
-                          >
-                            <option value="">Sélectionner...</option>
-                            {users
-                              .filter((u) => u.role === "beneficiary")
-                              .map((u) => (
-                                <option key={u.id} value={u.id}>
-                                  {u.firstname} {u.lastname}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
-                              Mois
-                            </label>
-                            <select
-                              className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                              value={goldenMonth}
-                              onChange={(e) =>
-                                setGoldenMonth(Number(e.target.value))
-                              }
-                            >
-                              {Array.from({ length: 12 }, (_, i) => (
-                                <option key={i + 1} value={i + 1}>
-                                  {new Date(2000, i).toLocaleString("fr-FR", {
-                                    month: "long",
-                                  })}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
-                              Année
-                            </label>
-                            <input
-                              type="number"
-                              min={2024}
-                              max={2030}
-                              value={goldenYear}
-                              className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                              onChange={(e) =>
-                                setGoldenYear(Number(e.target.value))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-3 pt-4">
-                          <button
-                            type="button"
-                            onClick={() => setShowGoldenTicketModal(false)}
-                            className="flex-1 border border-zinc-200 dark:border-zinc-700 py-3 rounded-xl font-bold text-zinc-500"
-                          >
-                            Annuler
-                          </button>
-                          <button
-                            onClick={handleAssignGoldenTicket}
-                            disabled={!goldenTargetId}
-                            className="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors"
-                          >
-                            Attribuer
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
+               
                 {isAdmin && (
                   <td className="p-4 flex gap-2 justify-end">
                     <button
@@ -639,6 +537,109 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
             </motion.div>
           </div>
         )}
+         {isAdminOrCivic && showGoldenTicketModal && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-amber-300 dark:border-amber-700"
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-400 flex items-center justify-center">
+                          <Ticket size={20} className="text-white" />
+                        </div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+                          Golden Ticket
+                        </h3>
+                      </div>
+                      {activeGoldenTicket && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mb-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
+                          Ticket actif: {activeGoldenTicket.firstname}{" "}
+                          {activeGoldenTicket.lastname} —{" "}
+                          {String(activeGoldenTicket.month).padStart(2, "0")}/
+                          {activeGoldenTicket.year}
+                        </p>
+                      )}
+                      <div className="space-y-4 mt-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
+                            Bénéficiaire
+                          </label>
+                          <select
+                            className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                            value={goldenTargetId ?? ""}
+                            onChange={(e) =>
+                              setGoldenTargetId(Number(e.target.value))
+                            }
+                          >
+                            <option value="">Sélectionner...</option>
+                            {users
+                              .filter((u) => u.role === "beneficiary")
+                              .map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.firstname} {u.lastname}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
+                              Mois
+                            </label>
+                            <select
+                              className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                              value={goldenMonth}
+                              onChange={(e) =>
+                                setGoldenMonth(Number(e.target.value))
+                              }
+                            >
+                              {Array.from({ length: 12 }, (_, i) => (
+                                <option key={i + 1} value={i + 1}>
+                                  {new Date(2000, i).toLocaleString("fr-FR", {
+                                    month: "long",
+                                  })}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">
+                              Année
+                            </label>
+                            <input
+                              type="number"
+                              min={2024}
+                              max={2030}
+                              value={goldenYear}
+                              className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-xl w-full font-medium bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                              onChange={(e) =>
+                                setGoldenYear(Number(e.target.value))
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setShowGoldenTicketModal(false)}
+                            className="flex-1 border border-zinc-200 dark:border-zinc-700 py-3 rounded-xl font-bold text-zinc-500"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            onClick={handleAssignGoldenTicket}
+                            disabled={!goldenTargetId}
+                            className="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors"
+                          >
+                            Attribuer
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
       </AnimatePresence>
     </div>
   );
