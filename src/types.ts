@@ -1,5 +1,13 @@
 export type Role = 'admin' | 'volunteer' | 'civic_service' | 'beneficiary' | 'adherent';
 
+export interface GoldenTicket {
+  id: number;
+  month: number;
+  year: number;
+  starts_at: string;
+  ends_at: string;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -8,6 +16,7 @@ export interface User {
   role: Role;
   dob: string;
   address: string;
+  goldenTicket?: GoldenTicket | null;
   profile_picture_url?: string;
 }
 
@@ -31,6 +40,7 @@ export interface Participant {
   role: Role;
   dob?: string;
   address?: string;
+  goldenTicket?: GoldenTicket | null;
 }
 
 export interface Session {

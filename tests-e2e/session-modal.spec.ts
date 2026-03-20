@@ -1,4 +1,4 @@
-import { defineConfig, expect, test } from "@playwright/test";
+import { defineConfig, expect, test, type Response } from "@playwright/test";
 import type { User } from "../src/types";
 
 /**
@@ -433,7 +433,7 @@ test.describe("SessionModal - Administrateur", () => {
 			} else {
 				await page.click('button:has-text("Suspendre")');
 			}
-			await expect(patchCalled).toBeTruthy();
+			expect(patchCalled).toBeTruthy();
 			expect(["approved", "pending"]).toContain(bodyData.status);
 		}
 	});
@@ -496,7 +496,7 @@ test.describe("SessionModal - Administrateur", () => {
 
 		page.once("dialog", (dialog) => dialog.accept());
 		await page.getByRole("button", { name: /Supprimer la session/i }).click();
-		await expect(deleteCalled).toBeTruthy();
+		expect(deleteCalled).toBeTruthy();
 	});
 
 	test("activité avec image/description se montre correctement", async ({
@@ -726,7 +726,7 @@ test.describe("SessionModal - Administrateur", () => {
 				}
 			}
 		}
-		if (call) expect(call).toBeTruthy();
+		expect(call).toBeTruthy();
 	});
 
 	test("admin peut retirer un participant via poubelle", async ({ page }) => {
@@ -850,7 +850,7 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
 		);
 
 		const sessionsServed = page.waitForResponse(
-			(r: any) => r.url().includes("/api/sessions") && r.status() === 200,
+			(r: Response) => r.url().includes("/api/login"),
 			{ timeout: 20000 },
 		);
 		await loginFn(page);

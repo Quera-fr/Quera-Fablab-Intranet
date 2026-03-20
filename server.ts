@@ -30,11 +30,6 @@ const pool = mysql.createPool({
 	queueLimit: 0,
 });
 
-pool.on("error", (err) => {
-	console.error("Unexpected error on idle client", err);
-	process.exit(-1);
-});
-
 const withTransaction = async <T>(
 	callback: (conn: mysql.PoolConnection) => Promise<T>,
 ): Promise<T> => {
@@ -132,6 +127,22 @@ async function initializeDatabase() {
       )
     `);
 
+		await conn.query(`
+      CREATE TABLE IF NOT EXISTS golden_tickets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        beneficiary_user_id INT NOT NULL,
+        assigned_by_user_id INT NOT NULL,
+        month INT NOT NULL,
+        year INT NOT NULL,
+        starts_at VARCHAR(255) NOT NULL,
+        ends_at VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_month_year (month, year),
+        FOREIGN KEY(beneficiary_user_id) REFERENCES users(id),
+        FOREIGN KEY(assigned_by_user_id) REFERENCES users(id)
+      )
+    `);
+
 		console.log("Database tables initialized");
 	} catch (error) {
 		console.error("Error initializing database:", error);
@@ -222,23 +233,72 @@ async function startServer() {
 			);
 			const user = (result as any)[0];
 
-			if (user) {
-				const { password: _password, ...userWithoutPassword } = user;
-				res.json(userWithoutPassword);
-			} else {
-				res.status(401).json({ error: "Identifiants invalides" });
-			}
-		} catch (e: any) {
-			res.status(500).json({ error: e.message });
-		}
-	});
+      if (user) {
+        const { password: _password, ...userWithoutPassword } = user;
+
+        const today = new Date().toISOString().split("T")[0];
+        const [ticketRows] = await pool.query(
+          `SELECT id, month, year, starts_at, ends_at
+           FROM golden_tickets
+           WHERE beneficiary_user_id = ? AND starts_at <= ? AND ends_at >= ?`,
+          [user.id, today, today],
+        );
+        const ticket = (ticketRows as any)[0] ?? null;
+
+        res.json({ ...userWithoutPassword, goldenTicket: ticket });
+      } else {
+        res.status(401).json({ error: "Identifiants invalides" });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
 	app.get("/api/users", async (_req: Request, res: Response) => {
 		try {
+			const today = new Date().toISOString().split("T")[0];
 			const [result] = await pool.query(
-				"SELECT id, email, lastname, firstname, role, dob, address FROM users",
+				`SELECT
+					u.id,
+					u.email,
+					u.lastname,
+					u.firstname,
+					u.role,
+					u.dob,
+					u.address,
+					gt.id AS golden_ticket_id,
+					gt.month AS golden_ticket_month,
+					gt.year AS golden_ticket_year,
+					gt.starts_at AS golden_ticket_starts_at,
+					gt.ends_at AS golden_ticket_ends_at
+				FROM users u
+				LEFT JOIN golden_tickets gt
+					ON gt.beneficiary_user_id = u.id
+					AND gt.starts_at <= ?
+					AND gt.ends_at >= ?`,
+				[today, today],
 			);
-			res.json(result);
+
+			const users = (result as any[]).map((row) => ({
+				id: row.id,
+				email: row.email,
+				lastname: row.lastname,
+				firstname: row.firstname,
+				role: row.role,
+				dob: row.dob,
+				address: row.address,
+				goldenTicket: row.golden_ticket_id
+					? {
+							id: row.golden_ticket_id,
+							month: row.golden_ticket_month,
+							year: row.golden_ticket_year,
+							starts_at: row.golden_ticket_starts_at,
+							ends_at: row.golden_ticket_ends_at,
+					  }
+					: null,
+			}));
+
+			res.json(users);
 		} catch (e: any) {
 			res.status(500).json({ error: e.message });
 		}
@@ -351,14 +411,53 @@ async function startServer() {
 
 	app.get("/api/users/:id", async (req: Request, res: Response) => {
 		try {
+			const today = new Date().toISOString().split("T")[0];
 			const [result] = await pool.query(
-				"SELECT id, email, lastname, firstname, role, dob, address FROM users WHERE id = ?",
-				[req.params.id],
+				`SELECT
+					u.id,
+					u.email,
+					u.lastname,
+					u.firstname,
+					u.role,
+					u.dob,
+					u.address,
+					gt.id AS golden_ticket_id,
+					gt.month AS golden_ticket_month,
+					gt.year AS golden_ticket_year,
+					gt.starts_at AS golden_ticket_starts_at,
+					gt.ends_at AS golden_ticket_ends_at
+				FROM users u
+				LEFT JOIN golden_tickets gt
+					ON gt.beneficiary_user_id = u.id
+					AND gt.starts_at <= ?
+					AND gt.ends_at >= ?
+				WHERE u.id = ?`,
+				[today, today, req.params.id],
 			);
-			const user = (result as any)[0];
+			const row = (result as any)[0];
 
-			if (!user)
+			if (!row)
 				return res.status(404).json({ error: "Utilisateur non trouvé" });
+
+			const user = {
+				id: row.id,
+				email: row.email,
+				lastname: row.lastname,
+				firstname: row.firstname,
+				role: row.role,
+				dob: row.dob,
+				address: row.address,
+				goldenTicket: row.golden_ticket_id
+					? {
+							id: row.golden_ticket_id,
+							month: row.golden_ticket_month,
+							year: row.golden_ticket_year,
+							starts_at: row.golden_ticket_starts_at,
+							ends_at: row.golden_ticket_ends_at,
+					  }
+					: null,
+			};
+
 			res.json(user);
 		} catch (e: any) {
 			res.status(500).json({ error: e.message });
@@ -514,16 +613,49 @@ async function startServer() {
         LEFT JOIN activities a ON s.activity_id = a.id
       `);
 
+			const today = new Date().toISOString().split("T")[0];
+
 			const sessionsWithParticipants = await Promise.all(
 				(sessionsResult as any).map(async (s: any) => {
 					const [participantsResult] = await pool.query(
-						`SELECT r.user_id, r.role_at_registration, u.firstname, u.lastname, u.role
+						`SELECT
+							r.user_id,
+							r.role_at_registration,
+							u.firstname,
+							u.lastname,
+							u.role,
+							gt.id AS golden_ticket_id,
+							gt.month AS golden_ticket_month,
+							gt.year AS golden_ticket_year,
+							gt.starts_at AS golden_ticket_starts_at,
+							gt.ends_at AS golden_ticket_ends_at
              FROM registrations r
              JOIN users u ON r.user_id = u.id
+             LEFT JOIN golden_tickets gt
+               ON gt.beneficiary_user_id = u.id
+              AND gt.starts_at <= ?
+              AND gt.ends_at >= ?
              WHERE r.session_id = ?`,
-						[s.id],
+						[today, today, s.id],
 					);
-					return { ...s, participants: participantsResult };
+							const participants = (participantsResult as any[]).map((p) => ({
+						user_id: p.user_id,
+						role_at_registration: p.role_at_registration,
+						firstname: p.firstname,
+						lastname: p.lastname,
+						role: p.role,
+						goldenTicket: p.golden_ticket_id
+							? {
+									id: p.golden_ticket_id,
+									month: p.golden_ticket_month,
+									year: p.golden_ticket_year,
+									starts_at: p.golden_ticket_starts_at,
+									ends_at: p.golden_ticket_ends_at,
+						  }
+							: null,
+					}));
+
+					return { ...s, participants };
 				}),
 			);
 
@@ -999,18 +1131,97 @@ async function startServer() {
 		}
 	});
 
-	if (process.env.NODE_ENV !== "production") {
-		const vite = await createViteServer({
-			server: { middlewareMode: true },
-			appType: "spa",
-		});
-		app.use(vite.middlewares);
-	} else {
-		app.use(express.static(path.join(__dirname, "dist")));
-		app.get("*", (_req, res) => {
-			res.sendFile(path.join(__dirname, "dist", "index.html"));
-		});
-	}
+  // ─── GOLDEN TICKETS ──────────────────────────────────────────────────────────
+  const GOLDEN_TICKET_ASSIGNERS: string[] = ['admin', 'civic_service'];
+
+  app.get("/api/golden-tickets/active", async (_req: Request, res: Response) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const [result] = await pool.query(
+        `SELECT gt.id, gt.beneficiary_user_id, gt.month, gt.year, gt.starts_at, gt.ends_at,
+              u.firstname, u.lastname
+       FROM golden_tickets gt
+       JOIN users u ON u.id = gt.beneficiary_user_id
+       WHERE gt.starts_at <= ? AND gt.ends_at >= ?`,
+        [today, today]
+      );
+      res.json((result as any)[0] ?? null);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/golden-tickets", async (req: Request, res: Response) => {
+    try {
+      const { beneficiary_user_id, assigned_by_user_id, month, year } = req.body;
+
+      if (!beneficiary_user_id || !assigned_by_user_id || !month || !year) {
+        return res.status(400).json({ error: "Paramètres manquants" });
+      }
+
+      const [assignerRows] = await pool.query("SELECT role FROM users WHERE id = ?", [assigned_by_user_id]);
+      const assigner = (assignerRows as any)[0];
+      if (!assigner || !GOLDEN_TICKET_ASSIGNERS.includes(assigner.role)) {
+        return res.status(403).json({ error: "Rôle non autorisé à attribuer un golden ticket" });
+      }
+
+      const [targetRows] = await pool.query("SELECT role FROM users WHERE id = ?", [beneficiary_user_id]);
+      const target = (targetRows as any)[0];
+      if (!target || target.role !== 'beneficiary') {
+        return res.status(400).json({ error: "L'utilisateur cible doit être un bénéficiaire" });
+      }
+
+      const starts_at = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const ends_at = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+
+      await pool.query(
+        `INSERT INTO golden_tickets (beneficiary_user_id, assigned_by_user_id, month, year, starts_at, ends_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           beneficiary_user_id = VALUES(beneficiary_user_id),
+           assigned_by_user_id = VALUES(assigned_by_user_id),
+           starts_at = VALUES(starts_at),
+           ends_at = VALUES(ends_at),
+           created_at = NOW()`,
+        [beneficiary_user_id, assigned_by_user_id, month, year, starts_at, ends_at]
+      );
+
+      const [rows] = await pool.query(
+        `SELECT * FROM golden_tickets WHERE month = ? AND year = ?`,
+        [month, year]
+      );
+      res.json((rows as any)[0]);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/golden-tickets/:id", async (req: Request, res: Response) => {
+    try {
+      const { requester_role } = req.body;
+      if (!requester_role || !GOLDEN_TICKET_ASSIGNERS.includes(requester_role)) {
+        return res.status(403).json({ error: "Rôle non autorisé" });
+      }
+      await pool.query("DELETE FROM golden_tickets WHERE id = ?", [req.params.id]);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static(path.join(__dirname, "dist")));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
+    });
+  }
 
 	app.listen(PORT, "0.0.0.0", () => {
 		console.log(`Server running on http://127.0.0.1:${PORT}`);
