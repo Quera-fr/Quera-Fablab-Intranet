@@ -12,7 +12,10 @@ import {
 import { User, Session } from "../../../types";
 import React, { useState } from "react";
 import Select from "react-select";
-import { isGoldenTicketActive, goldenClasses } from "../../../utils/goldenTicket";
+import {
+  isGoldenTicketActive,
+  goldenClasses,
+} from "../../../utils/goldenTicket";
 
 interface SessionModalProps {
   selectedSession: Session;
@@ -55,7 +58,7 @@ const SessionModal = ({
       ? ".. / .. / ...."
       : date.toLocaleDateString("fr-FR");
   };
-  
+
   type SelectOption = { value: number; label: string };
 
   const [selectedBeneficiaries, setSelectedBeneficiaries] = useState<
@@ -181,7 +184,7 @@ const SessionModal = ({
                   Liste d'appel
                 </h4>
                 <div className="flex flex-col gap-2 w-full sm:w-auto">
-                {(user.role === "civic_service" || user.role === "admin") && (
+                  {(user.role === "civic_service" || user.role === "admin") && (
                     <div className="flex flex-col gap-2 w-full">
                       <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-2xl overflow-hidden w-full gap-1 px-1">
                         <Select
@@ -269,7 +272,7 @@ const SessionModal = ({
                           }}
                           className="bg-black dark:bg-zinc-700 text-white px-3 py-1 rounded-full text-[10px] font-black hover:bg-zinc-800 shrink-0"
                         >
-                        Ajouter
+                          Ajouter
                         </button>
                       </div>
 
@@ -444,7 +447,10 @@ const SessionModal = ({
                                     </p>
 
                                     {isGoldenBeneficiary && (
-                                      <Ticket size={12} className="text-amber-500 shrink-0" />
+                                      <Ticket
+                                        size={12}
+                                        className="text-amber-500 shrink-0"
+                                      />
                                     )}
                                   </div>
 
@@ -509,6 +515,11 @@ const SessionModal = ({
                             {(user.role === "admin" ||
                               user.role === "civic_service") && (
                               <button
+                                onClick={() => {
+                                  onUnregister(selectedSession.id, p.user_id);
+                                  showSuccess("Utilisateur retiré !");
+                                }}
+                                className="text-zinc-300 hover:text-red-500 transition-colors"
                                 title="Retirer"
                               >
                                 <Trash2 size={14} />
@@ -549,45 +560,48 @@ const SessionModal = ({
             </div>
           )}
 
-{user.role === "admin" && selectedSession.type === "activity" && (
-  <div className="mt-10 pt-8 border-t border-gray-100">
-    {selectedSession.status === "pending" ? (
-      <button
-        onClick={() => {
-          onValidateActivity(selectedSession.activity_id!, "approved");
-          onClose();
-        }}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-600 text-sm hover:bg-emerald-100 transition-colors"
-      >
-        <CheckCircle className="w-4 h-4" />
-        Approuver l'atelier
-      </button>
-    ) : (
-      <button
-        onClick={() => {
-          onValidateActivity(selectedSession.activity_id!, "pending");
-          onClose();
-        }}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 text-amber-600 text-sm hover:bg-amber-100 transition-colors"
-      >
-        <Clock className="w-4 h-4" />
-        Suspendre
-      </button>
-    )}
-  </div>
-)}
+          {user.role === "admin" && selectedSession.type === "activity" && (
+            <div className="mt-10 pt-8 border-t border-gray-100">
+              {selectedSession.status === "pending" ? (
+                <button
+                  onClick={() => {
+                    onValidateActivity(
+                      selectedSession.activity_id!,
+                      "approved",
+                    );
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-600 text-sm hover:bg-emerald-100 transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approuver l'atelier
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onValidateActivity(selectedSession.activity_id!, "pending");
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 text-amber-600 text-sm hover:bg-amber-100 transition-colors"
+                >
+                  <Clock className="w-4 h-4" />
+                  Suspendre
+                </button>
+              )}
+            </div>
+          )}
 
-{(user.role === "admin" || user.role === "civic_service") && (
-  <div className="mt-4 pt-4 border-t border-gray-100">
-    <button
-      onClick={() => onDeleteSession(selectedSession.id)}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 text-sm hover:bg-red-100 transition-colors"
-    >
-      <Trash2 className="w-4 h-4" />
-      Supprimer la session
-    </button>
-  </div>
-)}
+          {(user.role === "admin" || user.role === "civic_service") && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => onDeleteSession(selectedSession.id)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 text-sm hover:bg-red-100 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer la session
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
