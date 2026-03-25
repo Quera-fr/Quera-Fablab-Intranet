@@ -69,9 +69,6 @@ async function initializeDatabase() {
       )
     `);
 
-      await conn.query(`
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(500)`);
-
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS activities (
