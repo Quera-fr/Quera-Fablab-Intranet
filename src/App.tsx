@@ -71,8 +71,24 @@ export default function App() {
     }
   }, [user]);
 
-  if (!user) {
+  const [authScreen, setAuthScreen] = useState<"public" | "login">("public");
+
+  if (!user && authScreen === "login") {
     return <LoginPage onLogin={setUser} />;
+  }
+
+  if (!user && authScreen === "public") {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
+        <main className="max-w-[1600px] mx-auto p-4 md:p-8">
+          <CalendarView
+            user={null}
+            readOnly
+            onLoginClick={() => setAuthScreen("login")}
+          />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -197,7 +213,9 @@ export default function App() {
               className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? "justify-center" : ""}`}
             >
               {!isSidebarCollapsed && (
-                <div className={`hidden md:flex items-center gap-3 px-2 py-3 ${ isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}>
+                <div
+                  className={`hidden md:flex items-center gap-3 px-2 py-3 ${isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}
+                >
                   {/* Avatar expanded */}
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 `}
@@ -274,7 +292,10 @@ export default function App() {
                 </button>
               </div>
               <button
-                onClick={() => setUser(null)}
+                onClick={() => {
+                  setUser(null);
+                  setAuthScreen("public");
+                }}
                 className={`p-3 ${isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400"} hover:text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
                 title="Déconnexion"
               >

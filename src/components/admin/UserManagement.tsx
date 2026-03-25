@@ -34,7 +34,14 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
     dob: "",
     address: "",
   });
-  const [activeGoldenTicket, setActiveGoldenTicket] = useState<(GoldenTicket & { beneficiary_user_id: number; firstname: string; lastname: string }) | null>(null);
+  const [activeGoldenTicket, setActiveGoldenTicket] = useState<
+    | (GoldenTicket & {
+        beneficiary_user_id: number;
+        firstname: string;
+        lastname: string;
+      })
+    | null
+  >(null);
   const [showGoldenTicketModal, setShowGoldenTicketModal] = useState(false);
   const [goldenMonth, setGoldenMonth] = useState(new Date().getMonth() + 1);
   const [goldenYear, setGoldenYear] = useState(new Date().getFullYear());
@@ -49,7 +56,8 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
     const ticket = ticketRes.ok ? await ticketRes.json() : null;
     const enriched = rawUsers.map((u) => ({
       ...u,
-      goldenTicket: ticket && ticket.beneficiary_user_id === u.id ? ticket : null,
+      goldenTicket:
+        ticket && ticket.beneficiary_user_id === u.id ? ticket : null,
     }));
     setUsers(enriched);
     setActiveGoldenTicket(ticket);
@@ -140,8 +148,6 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
     );
   };
 
-
-
   const handleAssignGoldenTicket = async () => {
     if (!goldenTargetId) return;
     await fetch("/api/golden-tickets", {
@@ -176,22 +182,24 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
             </button>
           )}
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors font-bold text-sm uppercase tracking-wider"
-          >
-            <Plus size={18} /> Ajouter
-          </button>
-        )}
-        {isAdminOrCivic && (
-          <button
-            onClick={() => setShowGoldenTicketModal(true)}
-            className="flex items-center gap-2 bg-amber-400 text-white px-4 py-2 rounded-xl hover:bg-amber-500 transition-colors font-bold text-sm uppercase tracking-wider"
-          >
-            <Ticket size={18} /> Golden Ticket
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors font-bold text-sm uppercase tracking-wider"
+            >
+              <Plus size={18} /> Ajouter
+            </button>
+          )}
+          {isAdminOrCivic && (
+            <button
+              onClick={() => setShowGoldenTicketModal(true)}
+              className="flex items-center gap-2 bg-amber-400 text-white px-4 py-2 rounded-xl hover:bg-amber-500 transition-colors font-bold text-sm uppercase tracking-wider"
+            >
+              <Ticket size={18} /> Golden Ticket
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
