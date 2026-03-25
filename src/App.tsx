@@ -9,7 +9,6 @@ import {
   Moon,
   Sun,
   Users,
-  Ticket,
   UserRound,
 } from "lucide-react";
 import { User } from "./types";
@@ -198,14 +197,10 @@ export default function App() {
               className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? "justify-center" : ""}`}
             >
               {!isSidebarCollapsed && (
-                <div className="hidden md:flex items-center gap-3 px-2 py-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden">
+                <div className={`hidden md:flex items-center gap-3 px-2 py-3 ${ isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}>
                   {/* Avatar expanded */}
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                      isGoldenTicketActive(user)
-                        ? goldenClasses.avatar
-                        : "bg-black text-white"
-                    }`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 `}
                   >
                     {user.profile_picture_url ? (
                       <img
