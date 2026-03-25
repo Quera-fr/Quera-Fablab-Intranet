@@ -78,13 +78,17 @@ describe('US2 - CalendarView Administration (Frontend)', () => {
     });
   });
 
-  it("doit activer le mode sélection multiple au clic sur le bouton List", async () => {
+  it("doit activer le mode sélection multiple au clic sur le bouton List", async ({ page }) => {
     render(<CalendarView user={mockAdmin} />);
     
-    const selectionButton = await screen.findByText(/Sél. Multiple/i);
+    await waitFor(() => expect(screen.getByText('Planning')).toBeInTheDocument());
+
+    const selectionButton = screen.getByText(/Sél. Multiple/i);
     fireEvent.click(selectionButton);
 
-    expect(screen.getByText(/Annuler/i)).toBeDefined();
+    // ✅ Correct - asynchrone, attend le re-render
+    const cancelBtn = await screen.findByRole('button', { name: /Annuler/i });
+    expect(cancelBtn).toBeInTheDocument();
   });
 
   // --- RESTAURATION DES TESTS PENDING ---

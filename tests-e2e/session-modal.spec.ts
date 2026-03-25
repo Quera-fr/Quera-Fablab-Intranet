@@ -49,6 +49,8 @@ const mockCivic: User = {
 
 async function loginAsAdmin(page: any) {
     await page.goto("/");
+    await page.getByRole("button", { name: /Se connecter/i }).click();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
     await page.route("**/api/login", async (route: any) => {
         await route.fulfill({
             status: 200,
@@ -67,6 +69,8 @@ async function loginAsAdmin(page: any) {
 
 async function loginAsCivic(page: any) {
     await page.goto("/");
+    await page.getByRole("button", { name: /Se connecter/i }).click();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
     await page.route("**/api/login", async (route: any) => {
         await route.fulfill({
             status: 200,
@@ -85,6 +89,8 @@ async function loginAsCivic(page: any) {
 
 async function loginAsBeneficiary(page: any) {
     await page.goto("/");
+    await page.getByRole("button", { name: /Se connecter/i }).click();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
     await page.route("**/api/login", async (route: any) => {
         await route.fulfill({
             status: 200,
@@ -938,12 +944,7 @@ test.describe("SessionModal - Inscription multi-bénéficiaires", () => {
             }),
         );
 
-        const sessionsServed = page.waitForResponse(
-            (r: Response) => r.url().includes("/api/login"),
-            { timeout: 20000 },
-        );
         await loginFn(page);
-        await sessionsServed;
     }
 
     test("admin inscrit plusieurs bénéficiaires via sélection multiple et Ajouter", async ({

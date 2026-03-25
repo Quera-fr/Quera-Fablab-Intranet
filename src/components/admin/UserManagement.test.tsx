@@ -45,6 +45,9 @@ beforeEach(() => {
     if (url === "/api/quera-points/totals") {
       return { ok: true, json: async () => [] };
     }
+    if (url === "/api/golden-tickets/active") {
+      return { ok: true, json: async () => null };
+    }
     return { ok: true, json: async () => [] };
   });
 });
@@ -63,4 +66,19 @@ it("fetches and displays volunteers and beneficiaries", async () => {
 
   const rows = screen.getAllByRole("row");
   expect(rows.length).toBe(3); // header + two users
+});
+
+it("displays Add and Golden Ticket buttons side by side (grouped right)", async () => {
+  render(<UserManagement currentUser={mockAdminUser} />);
+
+  await waitFor(() => {
+    const addBtn = screen.getByRole("button", { name: /Ajouter/i });
+    const goldenBtn = screen.getByRole("button", { name: /Golden Ticket/i });
+    
+    expect(addBtn).toBeInTheDocument();
+    expect(goldenBtn).toBeInTheDocument();
+
+    // Both should be visible in the top action area
+    expect(addBtn.parentElement?.className).toContain("flex");
+  });
 });

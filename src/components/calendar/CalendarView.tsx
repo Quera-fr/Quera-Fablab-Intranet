@@ -561,6 +561,21 @@ const CalendarView = ({
       minute: "2-digit",
     });
 
+  const handleDeleteSelectedSessions = async () => {
+    if (selectedSessionIds.length === 0) return;
+  
+    if (confirm(`Voulez-vous vraiment supprimer ${selectedSessionIds.length} session(s) ?`)) {
+      for (const sessionId of selectedSessionIds) {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: "DELETE",
+        });
+      }
+      setSelectedSessionIds([]);
+      setIsSelectionMode(false);
+      fetchSessions();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -689,7 +704,26 @@ const CalendarView = ({
                     Résa. Local
                   </button>
                   {isSelectionMode ? (
-                    <>{/* garde ton bloc actuel */}</>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSessionIds([]);
+                          setIsSelectionMode(false);
+                        }}
+                        className="flex items-center gap-2 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 px-3 py-1.5 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-all font-bold text-[10px] uppercase tracking-widest"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteSelectedSessions}
+                        disabled={selectedSessionIds.length === 0}
+                        className="flex items-center gap-2 bg-red-100 dark:bg-red-900/40 text-red-900 dark:text-red-100 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-[10px] uppercase tracking-widest shadow-lg"
+                      >
+                        <Trash2 size={16} /> Supprimer ({selectedSessionIds.length})
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
