@@ -430,8 +430,15 @@ const SessionModal = ({
                                       : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
                                   }`}
                                 >
-                                  {p.firstname[0]}
-                                  {p.lastname[0]}
+                                  {p.profile_picture_url ? (
+                                    <img
+                                      src={p.profile_picture_url}
+                                      alt={`${p.firstname} ${p.lastname}`}
+                                      className="w-full h-full rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    `${p.firstname[0]}${p.lastname[0]}`
+                                  )}
                                 </div>
 
                                 <div>

@@ -40,7 +40,7 @@ const ProfileModal = ({ user, onClose, onUpdate }: ProfileModalProps) => {
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 ${
                             isGoldenTicketActive(user) ? goldenClasses.avatar : 'bg-zinc-200 text-zinc-700'
                         }`}>
-                            {user.firstname[0]}{user.lastname[0]}
+                            {user.profile_picture_url}
                         </div>
                         <div>
                             <h3 className={`text-xl font-black uppercase tracking-tight ${isGoldenTicketActive(user) ? goldenClasses.name : ''}`}>

@@ -41,6 +41,7 @@ export interface Participant {
   dob?: string;
   address?: string;
   goldenTicket?: GoldenTicket | null;
+  profile_picture_url?: string;
 }
 
 export interface Session {

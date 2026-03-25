@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { type FormEvent, useState } from "react";
 import type { User } from "../../types";
 import Logo from "../ui/Logo";
+import { Phone } from "lucide-react";
 
 interface LoginPageProps {
 	onLogin: (user: User) => void;
@@ -85,8 +86,8 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
 					</button>
 				</form>
 
-				<div className="mt-8 pt-6 border-t border-zinc-100 text-[10px] text-zinc-400 text-center font-bold uppercase tracking-widest">
-					{/* <p>Admin: admin@assoc.fr / admin123</p> */}
+				<div className="mt-2 pt-6 border-t border-zinc-100 text-[12px] text-zinc-400 text-center font-bold uppercase tracking-widest">
+					Pour les inscriptions : <Phone className="inline-block mr-1 text-zinc-400" />01 86 04 07 74
 				</div>
 			</motion.div>
 		</div>
