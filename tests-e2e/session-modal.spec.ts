@@ -1,17 +1,6 @@
-import { defineConfig, expect, test, type Response } from "@playwright/test";
+import { expect, test, type Response } from "@playwright/test";
 import type { User } from "../src/types";
 
-/**
- * CONFIGURATION PLAYWRIGHT
- */
-export default defineConfig({
-    use: {
-        trace: "on",
-        screenshot: "on",
-        baseURL: "http://localhost:5173",
-    },
-    projects: [{ name: "chromium" }],
-});
 
 // ----------------------------------------------------------
 // HELPERS & MOCKS
