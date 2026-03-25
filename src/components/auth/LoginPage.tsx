@@ -86,8 +86,8 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
 					</button>
 				</form>
 
-				<div className="mt-2 pt-6 border-t border-zinc-100 text-[12px] text-zinc-400 text-center font-bold uppercase tracking-widest">
-					Pour les inscriptions : <Phone className="inline-block mr-1 text-zinc-400" />01 86 04 07 74
+				<div className="mt-2 pt-6 border-t  border-zinc-100 text-[12px] text-zinc-400 text-center font-bold uppercase tracking-widest">
+					Pour les inscriptions : <Phone size={13} className="inline-block align-middle + relative -top-px ml-1 mr-1 text-zinc-400" />01 86 04 07 74
 				</div>
 			</motion.div>
 		</div>
