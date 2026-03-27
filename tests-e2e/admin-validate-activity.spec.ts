@@ -9,7 +9,7 @@ test.describe('Activity Styling - Admin Validation (E2E)', () => {
       window.localStorage.setItem('token', 'fake-token');
     });
 
-    await page.goto('http://127.0.0.1:3000/');
+    await page.goto('http://127.0.0.1:6565/');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
   });

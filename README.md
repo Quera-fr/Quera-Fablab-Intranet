@@ -39,7 +39,7 @@ Utilisez `tsx` (inclus dans les devDependencies) pour exécuter directement le s
 npx tsx server.ts
 ```
 
-_(Le serveur démarrera sur **http://localhost:3000**)_
+_(Le serveur démarrera sur **http://localhost:6565**)_
 
 ---
 
