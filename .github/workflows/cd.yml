@@ -17,6 +17,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 1. NOUVEAU : Installation de QEMU pour émuler l'architecture ARM64
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -40,6 +44,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          # 2. NOUVEAU : Spécification de l'architecture cible
+          platforms: linux/arm64
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
