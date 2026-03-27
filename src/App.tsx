@@ -95,7 +95,7 @@ export default function App() {
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
       {/* Sidebar */}
       <aside
-        className={`${isSidebarCollapsed ? "w-20" : "w-20 md:w-72"} ${isGoldenTicketActive(user) ? goldenClasses.sidebar : "bg-white text-black"} dark:bg-zinc-900 border-r dark:text-white border-zinc-200 dark:border-zinc-800 flex flex-col sticky top-0 h-screen transition-all duration-300 z-40 shrink-0 overflow-hidden`}
+        className={`${isSidebarCollapsed ? "w-20" : "w-20 md:w-72"} ${user && isGoldenTicketActive(user) ? goldenClasses.sidebar : "bg-white text-black"} dark:bg-zinc-900 border-r dark:text-white border-zinc-200 dark:border-zinc-800 flex flex-col sticky top-0 h-screen transition-all duration-300 z-40 shrink-0 overflow-hidden`}
       >
         <div
           className={`p-4 flex flex-col gap-4 grow ${isSidebarCollapsed ? "items-center" : "md:items-start md:p-6"}`}
@@ -165,7 +165,7 @@ export default function App() {
                 <span className="hidden md:inline">Mes Inscriptions</span>
               )}
             </button>
-            {(user.role === "admin" || user.role === "civic_service") && (
+            {user && (user.role === "admin" || user.role === "civic_service") && (
               <button
                 onClick={() => setActiveTab("users")}
                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -184,7 +184,7 @@ export default function App() {
           </nav>
 
           <div className="mt-auto w-full space-y-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
-            {user.role === "admin" && !isSidebarCollapsed && (
+            {user && user.role === "admin" && !isSidebarCollapsed && (
               <div className="hidden md:block px-2">
                 <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-2 px-2">
                   Simuler un rôle
@@ -212,9 +212,9 @@ export default function App() {
             <div
               className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? "justify-center" : ""}`}
             >
-              {!isSidebarCollapsed && (
+              {!isSidebarCollapsed && user && (
                 <div
-                  className={`hidden md:flex items-center gap-3 px-2 py-3 ${isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}
+                  className={`hidden md:flex items-center gap-3 px-2 py-3 ${user && isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}
                 >
                   {/* Avatar expanded */}
                   <div
@@ -241,10 +241,10 @@ export default function App() {
                 </div>
               )}
               {/* Avatar collapsed */}
-              {isSidebarCollapsed && (
+              {isSidebarCollapsed && user && (
                 <div
                   className={`md:flex hidden w-10 h-10 rounded-full items-center justify-center text-[10px] font-black text-white shrink-0 mx-auto ${
-                    isGoldenTicketActive(user)
+                    user && isGoldenTicketActive(user)
                       ? goldenClasses.avatar
                       : "bg-black"
                   }`}
@@ -278,14 +278,14 @@ export default function App() {
               >
                 <button
                   onClick={() => setIsDarkMode(!isDarkMode)}
-                  className={`p-3 ${isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400 hover:text-black"} dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
+                  className={`p-3 ${user && isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400 hover:text-black"} dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
                   title="Mode Sombre"
                 >
                   {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
                 <button
                   onClick={() => setActiveTab("profile")}
-                  className={`${isSidebarCollapsed ? "flex" : "hidden md:block"} p-3 ${isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400 hover:text-black"} dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
+                  className={`${isSidebarCollapsed ? "flex" : "hidden md:block"} p-3 ${user && isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400 hover:text-black"} dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
                   title="Profil"
                 >
                   <UserRound size={20} />
@@ -296,7 +296,7 @@ export default function App() {
                   setUser(null);
                   setAuthScreen("public");
                 }}
-                className={`p-3 ${isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400"} hover:text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
+                className={`p-3 ${user && isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400"} hover:text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all`}
                 title="Déconnexion"
               >
                 <LogOut size={20} />
@@ -333,7 +333,7 @@ export default function App() {
                   {/* For now this shows the same calendar; later you can pass special props for Service Civique */}
                   <CalendarView user={user} />
                 </motion.div>
-              ) : activeTab === "users" ? (
+              ) : activeTab === "users" && user ? (
                 <motion.div
                   key="users"
                   initial={{ opacity: 0, y: 10 }}
@@ -342,7 +342,7 @@ export default function App() {
                 >
                   <UserManagement currentUser={user} />
                 </motion.div>
-              ) : activeTab === "profile" ? (
+              ) : activeTab === "profile" && user ? (
                 <motion.div
                   key="profile"
                   initial={{ opacity: 0, y: 10 }}
@@ -351,7 +351,7 @@ export default function App() {
                 >
                   <ProfilePage user={user} onUpdate={setUser} />
                 </motion.div>
-              ) : (
+              ) : activeTab === "my_registrations" && user ? (
                 <motion.div
                   key="my_registrations"
                   initial={{ opacity: 0, y: 10 }}
@@ -360,7 +360,7 @@ export default function App() {
                 >
                   <MyRegistrationsView user={user} />
                 </motion.div>
-              )}
+              ) : null }
             </AnimatePresence>
           </div>
         </main>
@@ -368,7 +368,7 @@ export default function App() {
 
       {/* Profile Modal */}
       <AnimatePresence>
-        {showProfile && (
+        {showProfile && user && (
           <ProfileModal
             user={user}
             onClose={() => setShowProfile(false)}
