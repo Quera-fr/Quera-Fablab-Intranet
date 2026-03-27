@@ -137,7 +137,7 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
               </div>
 
               {isGolden && (
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full  bg-amber-100 border border-amber-300 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:border-amber-600 text-[10px] font-black uppercase tracking-widest">
                   <Ticket size={12} />
                   Golden Ticket
                 </div>

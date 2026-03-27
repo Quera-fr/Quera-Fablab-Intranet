@@ -263,7 +263,7 @@ export default function App() {
               <div className="md:hidden">
                 <button
                   onClick={() => setActiveTab("profile")}
-                  className="p-3 text-zinc-400 hover:text-black dark:hover:text-white transition-all"
+                  className={`p-3 ${user && isGoldenTicketActive(user) ? goldenClasses.icons : "text-zinc-400 hover:text-black"} dark:hover:text-white transition-all`}
                 >
                   <UserRound size={20} />
                 </button>

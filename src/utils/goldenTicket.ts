@@ -11,7 +11,7 @@ export const goldenClasses = {
   avatar: 'bg-gradient-to-br from-amber-400 to-yellow-500 text-white ring-2 ring-amber-300 dark:ring-amber-500',
   badge: 'bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-600',
   card: 'ring-2 ring-amber-400 dark:ring-amber-500 bg-amber-50/40 dark:bg-amber-900/10',
-  sidebar : 'bg-gradient-to-t from-amber-400 to-white dark:from-amber-900 dark:to-zinc-950',
+  sidebar : 'bg-gradient-to-t from-amber-400 from-0% via-white via-85% to-white dark:from-amber-900 dark:via-zinc-950 dark:to-zinc-950',
   name: 'text-amber-700 dark:text-amber-300',
   icons: 'text-black dark:text-white dark:hover:text-white hover:text-black',
 };
