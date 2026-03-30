@@ -8,7 +8,7 @@
 //   use: {
 //     trace: 'on',
 //     screenshot: 'on',
-//     baseURL: 'http://localhost:5173',
+//     baseURL: 'http://localhost:6565',
 //   },
 //   projects: [{ name: 'chromium' }],
 // });

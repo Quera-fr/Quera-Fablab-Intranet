@@ -361,7 +361,7 @@ export default function App() {
                   <MyRegistrationsView user={user} />
                 </motion.div>
               ) : null }
-            </AnimatePresence>
+             </AnimatePresence>
           </div>
         </main>
       </div>

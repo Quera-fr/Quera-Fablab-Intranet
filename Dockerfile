@@ -16,6 +16,7 @@ COPY . .
 
 RUN npm run build
 
+
 # Expose ports
 # 6565 is used for the API server
 EXPOSE 6565
