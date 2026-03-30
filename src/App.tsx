@@ -10,6 +10,7 @@ import {
   Sun,
   Users,
   UserRound,
+  ShoppingBagIcon,
 } from "lucide-react";
 import { User } from "./types";
 import {
@@ -25,11 +26,17 @@ import ProfilePage from "./components/profile/ProfilePage";
 import CalendarView from "./components/calendar/CalendarView";
 import MyRegistrationsView from "./components/registrations/MyRegistrationsView";
 import ProfileModal from "./components/profile/ProfileModal";
+import ShopView from "./components/shop/ShopView";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "planning" | "civic_calendar" | "users" | "my_registrations" | "profile"
+    | "planning"
+    | "civic_calendar"
+    | "users"
+    | "my_registrations"
+    | "profile"
+    | "shop"
   >("planning");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -165,22 +172,37 @@ export default function App() {
                 <span className="hidden md:inline">Mes Inscriptions</span>
               )}
             </button>
-            {user && (user.role === "admin" || user.role === "civic_service") && (
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === "users"
-                    ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
-                    : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
-                title="Utilisateurs"
-              >
-                <Users size={18} className="shrink-0" />{" "}
-                {!isSidebarCollapsed && (
-                  <span className="hidden md:inline">Utilisateurs</span>
-                )}
-              </button>
-            )}
+            {user &&
+              (user.role === "admin" || user.role === "civic_service") && (
+                <button
+                  onClick={() => setActiveTab("users")}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    activeTab === "users"
+                      ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
+                      : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
+                  title="Utilisateurs"
+                >
+                  <Users size={18} className="shrink-0" />{" "}
+                  {!isSidebarCollapsed && (
+                    <span className="hidden md:inline">Utilisateurs</span>
+                  )}
+                </button>
+              )}
+            <button
+              onClick={() => setActiveTab("shop")}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === "shop"
+                  ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
+                  : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
+              title="Boutique"
+            >
+              <ShoppingBagIcon size={18} className="shrink-0" />{" "}
+              {!isSidebarCollapsed && (
+                <span className="hidden md:inline">Boutique</span>
+              )}
+            </button>
           </nav>
 
           <div className="mt-auto w-full space-y-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
@@ -360,8 +382,17 @@ export default function App() {
                 >
                   <MyRegistrationsView user={user} />
                 </motion.div>
-              ) : null }
-             </AnimatePresence>
+              ) : activeTab === "shop" && user ? (
+                <motion.div
+                  key="shop"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <ShopView user={user} />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
         </main>
       </div>

@@ -88,3 +88,16 @@ export interface QueraPointsTotal {
   lastname: string;
   total_points: number;
 }
+
+export type ShopArticle = {
+  id: number;
+  title: string;
+  description: string;
+  image_url: string | null;
+  points: number;
+  status: string;
+  reserved_by_user_id: number | null;
+  reserved_at: string | null;
+  reserved_firstname?: string;
+  reserved_lastname?: string;
+};

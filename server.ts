@@ -69,7 +69,6 @@ async function initializeDatabase() {
       )
     `);
 
-
     await conn.query(`
       CREATE TABLE IF NOT EXISTS activities (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -84,7 +83,6 @@ async function initializeDatabase() {
       )
     `);
 
-  
     await conn.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -122,6 +120,7 @@ async function initializeDatabase() {
         manager_user_id INT NOT NULL,
         beneficiary_user_id INT NOT NULL,
         delta INT NOT NULL,
+        status VARCHAR(255) DEFAULT 'validated',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         comment TEXT,
         FOREIGN KEY(manager_user_id) REFERENCES users(id),
@@ -143,6 +142,23 @@ async function initializeDatabase() {
         UNIQUE KEY unique_month_year (month, year),
         FOREIGN KEY(beneficiary_user_id) REFERENCES users(id),
         FOREIGN KEY(assigned_by_user_id) REFERENCES users(id)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS articles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        image_url VARCHAR(255),
+        points INT NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        reserved_by_user_id INT NULL,
+        reserved_at DATETIME NULL,
+        created_by_user_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(reserved_by_user_id) REFERENCES users(id),
+        FOREIGN KEY(created_by_user_id) REFERENCES users(id)
       )
     `);
 
@@ -312,8 +328,16 @@ async function startServer() {
 
   app.post("/api/users", async (req: Request, res: Response) => {
     try {
-      const { email, password, lastname, firstname, role, dob, address, profile_picture_url } =
-        req.body;
+      const {
+        email,
+        password,
+        lastname,
+        firstname,
+        role,
+        dob,
+        address,
+        profile_picture_url,
+      } = req.body;
       const [result] = await pool.query(
         `INSERT INTO users (email, password, lastname, firstname, role, dob, address, profile_picture_url)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -475,8 +499,16 @@ async function startServer() {
 
   app.patch("/api/users/:id", async (req: Request, res: Response) => {
     try {
-      const { email, password, lastname, firstname, role, dob, address, profile_picture_url } =
-        req.body;
+      const {
+        email,
+        password,
+        lastname,
+        firstname,
+        role,
+        dob,
+        address,
+        profile_picture_url,
+      } = req.body;
 
       if (password) {
         await pool.query(
@@ -498,7 +530,16 @@ async function startServer() {
         await pool.query(
           `UPDATE users SET email = ?, lastname = ?, firstname = ?, role = ?, dob = ?, address = ?, profile_picture_url = ?
            WHERE id = ?`,
-          [email, lastname, firstname, role, dob, address, profile_picture_url, req.params.id],
+          [
+            email,
+            lastname,
+            firstname,
+            role,
+            dob,
+            address,
+            profile_picture_url,
+            req.params.id,
+          ],
         );
       }
 
@@ -1252,6 +1293,104 @@ async function startServer() {
     }
   });
 
+  // ─── BOUTIQUE (ARTICLES) ──────────────────────────────────────────────
+
+  // GET tous les articles
+  app.get("/api/articles", async (_req: Request, res: Response) => {
+    try {
+      const [result] = await pool.query(
+        `SELECT a.*, u.firstname AS reserved_firstname, u.lastname AS reserved_lastname
+         FROM articles a
+         LEFT JOIN users u ON a.reserved_by_user_id = u.id`
+      );
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST création d'un article (admin/civic_service uniquement)
+  app.post("/api/articles", async (req: Request, res: Response) => {
+    try {
+      const { title, description, image_url, points, created_by_user_id, status } = req.body;
+      // Vérification du rôle à faire côté frontend et backend si besoin
+      if (!title || !points || !created_by_user_id) {
+        return res.status(400).json({ error: "Paramètres manquants" });
+      }
+      await pool.query(
+        `INSERT INTO articles (title, description, image_url, points, created_by_user_id, status)
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        [title, description, image_url, points, created_by_user_id, status]
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // PATCH réserver un article (bénéficiaire)
+  app.patch("/api/articles/:id/reserve", async (req: Request, res: Response) => {
+    try {
+      const articleId = req.params.id;
+      const { user_id } = req.body;
+      // Vérifier que l'article est disponible
+      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [articleId]);
+      const article = (rows as any)[0];
+      if (!article) return res.status(404).json({ error: "Article non trouvé" });
+      if (article.status !== "active" || article.reserved_by_user_id) {
+        return res.status(400).json({ error: "Article déjà réservé ou non disponible" });
+      }
+      // Vérifier que l'utilisateur a assez de points (à adapter selon ta logique de points)
+      // ...
+      await pool.query(
+        `UPDATE articles SET reserved_by_user_id = ?, reserved_at = NOW(), status = 'reserved' WHERE id = ?`,
+        [user_id, articleId]
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // PATCH valider l'utilisation (admin/civic_service)
+  app.patch("/api/articles/:id/validate", async (req, res) => {
+    try {
+      const articleId = req.params.id;
+      // Récupérer l'article
+      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [articleId]);
+      const article = rows[0];
+      if (!article) return res.status(404).json({ error: "Article non trouvé" });
+
+      // Valider la transaction de points
+      await pool.query(
+        `UPDATE quera_points SET status = 'validated'
+         WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
+        [article.reserved_by_user_id, `Réservation article #${article.id}`]
+      );
+
+      // Mettre à jour l'article
+      await pool.query(
+        `UPDATE articles SET status = 'validated' WHERE id = ?`,
+        [articleId]
+      );
+
+      res.json({ success: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // DELETE supprimer un article (admin/civic_service)
+  app.delete("/api/articles/:id", async (req: Request, res: Response) => {
+    try {
+      const articleId = req.params.id;
+      await pool.query("DELETE FROM articles WHERE id = ?", [articleId]);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1264,6 +1403,7 @@ async function startServer() {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
+
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
