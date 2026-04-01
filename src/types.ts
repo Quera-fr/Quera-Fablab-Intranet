@@ -20,6 +20,13 @@ export interface User {
   profile_picture_url?: string;
 }
 
+export interface ProfilePageProps {
+  user: User;
+  onUpdate: (user: User) => void;
+}
+
+export type UserUpdatePayload = Partial<User> & { password?: string };
+
 export interface Activity {
   id: number;
   title: string;
@@ -89,15 +96,37 @@ export interface QueraPointsTotal {
   total_points: number;
 }
 
+export type ShopArticleStatus = 'active' | 'reserved' | 'validated';
+
 export type ShopArticle = {
   id: number;
   title: string;
   description: string;
   image_url: string | null;
   points: number;
-  status: string;
+  status: ShopArticleStatus;
   reserved_by_user_id: number | null;
   reserved_at: string | null;
   reserved_firstname?: string;
   reserved_lastname?: string;
 };
+
+export interface PointsHistoryDatum {
+  period_start: string;
+  period_label: string;
+  points: number;
+  cumulative: number;
+}
+
+export interface PointsHistoryResponse {
+  total_points: number;
+  cumulative_series: PointsHistoryDatum[];
+}
+
+export interface PointsHistoryApiResponse {
+  user_id: number;
+  start_date: string;
+  end_date: string;
+  total_points: number;
+  cumulative_series: PointsHistoryDatum[];
+}

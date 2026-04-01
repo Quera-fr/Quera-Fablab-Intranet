@@ -1071,6 +1071,104 @@ async function startServer() {
     }
   });
 
+  // GET historique cumulé des points validés sur 3 mois (par semaine)
+  app.get(
+    "/api/quera-points/history/:userId",
+    async (req: Request, res: Response) => {
+      try {
+        const userId = Number(req.params.userId);
+        if (Number.isNaN(userId)) {
+          return res.status(400).json({ error: "userId invalide" });
+        }
+
+        const endDate = new Date();
+        endDate.setHours(0, 0, 0, 0);
+        const startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 89);
+
+        const toIsoDate = (date: Date) => date.toISOString().split("T")[0];
+        const startIso = toIsoDate(startDate);
+        const endIso = toIsoDate(endDate);
+
+        const [result] = await pool.query(
+          `SELECT date, COALESCE(SUM(delta), 0) AS points
+           FROM quera_points
+           WHERE beneficiary_user_id = ?
+             AND status = 'validated'
+             AND date >= ?
+             AND date <= ?
+           GROUP BY date
+           ORDER BY date ASC`,
+          [userId, startIso, endIso],
+        );
+
+        const getStartOfWeek = (date: Date) => {
+          const copy = new Date(date);
+          const dayIndex = (copy.getDay() + 6) % 7; // lundi = 0
+          copy.setDate(copy.getDate() - dayIndex);
+          copy.setHours(0, 0, 0, 0);
+          return copy;
+        };
+
+        const dailyRows = (result as any[]).map((row) => ({
+          date: String(row.date),
+          points: Number(row.points ?? 0),
+        }));
+
+        const weeklyTotals = new Map<string, number>();
+        for (const row of dailyRows) {
+          const rowDate = new Date(`${row.date}T00:00:00`);
+          const weekStart = getStartOfWeek(rowDate);
+          const weekKey = toIsoDate(weekStart);
+          weeklyTotals.set(
+            weekKey,
+            (weeklyTotals.get(weekKey) ?? 0) + row.points,
+          );
+        }
+
+        const chartData: {
+          period_start: string;
+          period_label: string;
+          points: number;
+          cumulative: number;
+        }[] = [];
+
+        let runningTotal = 0;
+        const firstWeek = getStartOfWeek(startDate);
+        const lastWeek = getStartOfWeek(endDate);
+        for (
+          let cursor = new Date(firstWeek);
+          cursor <= lastWeek;
+          cursor.setDate(cursor.getDate() + 7)
+        ) {
+          const periodStart = toIsoDate(cursor);
+          const points = weeklyTotals.get(periodStart) ?? 0;
+          runningTotal += points;
+
+          chartData.push({
+            period_start: periodStart,
+            period_label: new Intl.DateTimeFormat("fr-FR", {
+              day: "2-digit",
+              month: "2-digit",
+            }).format(cursor),
+            points,
+            cumulative: runningTotal,
+          });
+        }
+
+        return res.json({
+          user_id: userId,
+          start_date: startIso,
+          end_date: endIso,
+          total_points: runningTotal,
+          cumulative_series: chartData,
+        });
+      } catch (e: any) {
+        return res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
   // GET points "bloqués" (locked) par bénéficiaire (pour la boutique)
   app.get("/api/quera-points/locked", async (_req: Request, res: Response) => {
     try {
@@ -1274,6 +1372,12 @@ async function startServer() {
       const lastDay = new Date(endYear, actualEndMonth, 0).getDate();
       const ends_at = `${endYear}-${String(actualEndMonth).padStart(2, "0")}-${lastDay}`;
 
+      const todayDate = new Date().toISOString().split("T")[0];
+      await pool.query(
+        `DELETE FROM golden_tickets WHERE starts_at <= ? AND ends_at >= ?`,
+        [todayDate, todayDate],
+      );
+
       await pool.query(
         `INSERT INTO golden_tickets (beneficiary_user_id, assigned_by_user_id, month, year, starts_at, ends_at)
          VALUES (?, ?, ?, ?, ?, ?)
@@ -1336,6 +1440,33 @@ async function startServer() {
       res.status(500).json({ error: e.message });
     }
   });
+
+  // GET articles reservés/validés d'un bénéficiaire
+  app.get(
+    "/api/articles/by-user/:userId",
+    async (req: Request, res: Response) => {
+      try {
+        const userId = Number(req.params.userId);
+        if (Number.isNaN(userId)) {
+          return res.status(400).json({ error: "userId invalide" });
+        }
+
+        const [result] = await pool.query(
+          `SELECT a.*, u.firstname AS reserved_firstname, u.lastname AS reserved_lastname
+         FROM articles a
+         LEFT JOIN users u ON a.reserved_by_user_id = u.id
+         WHERE a.reserved_by_user_id = ?
+           AND a.status IN ('reserved', 'validated')
+         ORDER BY a.reserved_at DESC, a.id DESC`,
+          [userId],
+        );
+
+        return res.json(result);
+      } catch (e: any) {
+        return res.status(500).json({ error: e.message });
+      }
+    },
+  );
 
   // POST création d'un article (admin/civic_service uniquement)
   app.post("/api/articles", async (req: Request, res: Response) => {
