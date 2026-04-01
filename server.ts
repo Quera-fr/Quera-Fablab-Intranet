@@ -120,7 +120,7 @@ async function initializeDatabase() {
         manager_user_id INT NOT NULL,
         beneficiary_user_id INT NOT NULL,
         delta INT NOT NULL,
-        status VARCHAR(255) DEFAULT 'validated',
+        status VARCHAR(50) DEFAULT 'validated',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         comment TEXT,
         FOREIGN KEY(manager_user_id) REFERENCES users(id),
@@ -1049,12 +1049,13 @@ async function startServer() {
     try {
       const [result] = await pool.query(
         `SELECT qp.beneficiary_user_id AS user_id,
-                COALESCE(SUM(qp.delta), 0) AS total_points,
-                u.firstname, u.lastname
-         FROM quera_points qp
-         JOIN users u ON u.id = qp.beneficiary_user_id
-         GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
-         ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`,
+            COALESCE(SUM(qp.delta), 0) AS total_points,
+            u.firstname, u.lastname
+       FROM quera_points qp
+       JOIN users u ON u.id = qp.beneficiary_user_id
+       WHERE qp.status = 'validated'
+       GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
+       ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`,
       );
       res.json(
         (result as any).map((r: any) => ({
@@ -1062,6 +1063,33 @@ async function startServer() {
           firstname: r.firstname,
           lastname: r.lastname,
           total_points: Number(r.total_points),
+        })),
+      );
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+      console.log(e);
+    }
+  });
+
+  // GET points "bloqués" (locked) par bénéficiaire (pour la boutique)
+  app.get("/api/quera-points/locked", async (_req: Request, res: Response) => {
+    try {
+      const [result] = await pool.query(
+        `SELECT qp.beneficiary_user_id AS user_id,
+            COALESCE(SUM(qp.delta), 0) AS locked_points,
+            u.firstname, u.lastname
+       FROM quera_points qp
+       JOIN users u ON u.id = qp.beneficiary_user_id
+       WHERE qp.status = 'locked'
+       GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
+       ORDER BY locked_points DESC, u.lastname ASC, u.firstname ASC`,
+      );
+      res.json(
+        (result as any).map((r: any) => ({
+          user_id: Number(r.user_id),
+          firstname: r.firstname,
+          lastname: r.lastname,
+          locked_points: Number(r.locked_points),
         })),
       );
     } catch (e: any) {
@@ -1301,7 +1329,7 @@ async function startServer() {
       const [result] = await pool.query(
         `SELECT a.*, u.firstname AS reserved_firstname, u.lastname AS reserved_lastname
          FROM articles a
-         LEFT JOIN users u ON a.reserved_by_user_id = u.id`
+         LEFT JOIN users u ON a.reserved_by_user_id = u.id`,
       );
       res.json(result);
     } catch (e: any) {
@@ -1312,7 +1340,14 @@ async function startServer() {
   // POST création d'un article (admin/civic_service uniquement)
   app.post("/api/articles", async (req: Request, res: Response) => {
     try {
-      const { title, description, image_url, points, created_by_user_id, status } = req.body;
+      const {
+        title,
+        description,
+        image_url,
+        points,
+        created_by_user_id,
+        status,
+      } = req.body;
       // Vérification du rôle à faire côté frontend et backend si besoin
       if (!title || !points || !created_by_user_id) {
         return res.status(400).json({ error: "Paramètres manquants" });
@@ -1320,7 +1355,7 @@ async function startServer() {
       await pool.query(
         `INSERT INTO articles (title, description, image_url, points, created_by_user_id, status)
          VALUES (?, ?, ?, ?, ?, 'active')`,
-        [title, description, image_url, points, created_by_user_id, status]
+        [title, description, image_url, points, created_by_user_id, status],
       );
       res.json({ success: true });
     } catch (e: any) {
@@ -1329,22 +1364,108 @@ async function startServer() {
   });
 
   // PATCH réserver un article (bénéficiaire)
-  app.patch("/api/articles/:id/reserve", async (req: Request, res: Response) => {
+  app.patch(
+    "/api/articles/:id/reserve",
+    async (req: Request, res: Response) => {
+      try {
+        const articleId = req.params.id;
+        const { user_id } = req.body;
+
+        // Vérifier que l'article est disponible
+        const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [
+          articleId,
+        ]);
+        const article = (rows as any)[0];
+        if (!article)
+          return res.status(404).json({ error: "Article non trouvé" });
+        if (article.status !== "active" || article.reserved_by_user_id) {
+          return res
+            .status(400)
+            .json({ error: "Article déjà réservé ou non disponible" });
+        }
+
+        // Récupérer les points validés
+        const [validatedRows] = await pool.query(
+          `SELECT COALESCE(SUM(delta), 0) AS total_points
+   FROM quera_points
+   WHERE beneficiary_user_id = ? AND status = 'validated'`,
+          [user_id],
+        );
+        const validated = Number((validatedRows as any)[0]?.total_points ?? 0);
+
+        // Récupérer les points bloqués
+        const [lockedRows] = await pool.query(
+          `SELECT COALESCE(SUM(delta), 0) AS locked_points
+   FROM quera_points
+   WHERE beneficiary_user_id = ? AND status = 'locked'`,
+          [user_id],
+        );
+        const locked = Number((lockedRows as any)[0]?.locked_points ?? 0);
+
+        const pointsRestants = validated + locked;
+        if (pointsRestants < article.points) {
+          return res
+            .status(400)
+            .json({ error: "Pas assez de points pour réserver cet article." });
+        }
+
+        // Réserver l'article
+        await pool.query(
+          `UPDATE articles SET reserved_by_user_id = ?, reserved_at = NOW(), status = 'reserved' WHERE id = ?`,
+          [user_id, articleId],
+        );
+
+        // Insérer une ligne "locked" dans quera_points
+        await pool.query(
+          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, status, comment)
+           VALUES (?, ?, ?, ?, 'locked', ?)`,
+          [
+            new Date().toISOString().split("T")[0], // date du jour
+            article.created_by_user_id, // manager_user_id (créateur de l'article)
+            user_id, // bénéficiaire
+            -article.points, // points bloqués (négatif)
+            `Réservation article #${articleId}`, // commentaire pour retrouver la ligne
+          ],
+        );
+
+        res.json({ success: true });
+      } catch (e: any) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
+  // PATCH annuler la réservation (bénéficiaire)
+  app.patch("/api/articles/:id/cancel", async (req: Request, res: Response) => {
     try {
       const articleId = req.params.id;
       const { user_id } = req.body;
-      // Vérifier que l'article est disponible
-      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [articleId]);
+      // Vérifier que l'article est réservé par l'utilisateur
+      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [
+        articleId,
+      ]);
       const article = (rows as any)[0];
-      if (!article) return res.status(404).json({ error: "Article non trouvé" });
-      if (article.status !== "active" || article.reserved_by_user_id) {
-        return res.status(400).json({ error: "Article déjà réservé ou non disponible" });
+      if (!article)
+        return res.status(404).json({ error: "Article non trouvé" });
+      if (article.reserved_by_user_id !== user_id) {
+        return res
+          .status(403)
+          .json({ error: "Vous ne pouvez pas annuler cette réservation" });
       }
-      // Vérifier que l'utilisateur a assez de points (à adapter selon ta logique de points)
-      // ...
+      if (article.status === "validated") {
+        return res
+          .status(400)
+          .json({ error: "Impossible d'annuler une réservation déjà validée" });
+      }
+      // Annuler la réservation
       await pool.query(
-        `UPDATE articles SET reserved_by_user_id = ?, reserved_at = NOW(), status = 'reserved' WHERE id = ?`,
-        [user_id, articleId]
+        `UPDATE articles SET reserved_by_user_id = NULL, reserved_at = NULL, status = 'active' WHERE id = ?`,
+        [articleId],
+      );
+      // Supprimer la ligne de points locked associée
+      await pool.query(
+        `DELETE FROM quera_points WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
+        [user_id, `Réservation article #${articleId}`],
       );
       res.json({ success: true });
     } catch (e: any) {
@@ -1357,25 +1478,28 @@ async function startServer() {
     try {
       const articleId = req.params.id;
       // Récupérer l'article
-      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [articleId]);
-      const article = rows[0];
-      if (!article) return res.status(404).json({ error: "Article non trouvé" });
+      const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [
+        articleId,
+      ]);
+      const article = (rows as any)[0];
+      if (!article)
+        return res.status(404).json({ error: "Article non trouvé" });
 
       // Valider la transaction de points
       await pool.query(
         `UPDATE quera_points SET status = 'validated'
          WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
-        [article.reserved_by_user_id, `Réservation article #${article.id}`]
+        [article.reserved_by_user_id, `Réservation article #${article.id}`],
       );
 
       // Mettre à jour l'article
       await pool.query(
         `UPDATE articles SET status = 'validated' WHERE id = ?`,
-        [articleId]
+        [articleId],
       );
 
       res.json({ success: true });
-    } catch (e) {
+    } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
@@ -1403,7 +1527,6 @@ async function startServer() {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
-
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
