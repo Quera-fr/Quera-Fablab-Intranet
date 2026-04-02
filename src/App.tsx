@@ -28,6 +28,7 @@ import MyRegistrationsView from "./components/registrations/MyRegistrationsView"
 import ProfileModal from "./components/profile/ProfileModal";
 import ShopView from "./components/shop/ShopView";
 import GoldenAmbientBackground from "./components/effects/GoldenAmbientBackground";
+import GoldenTicketReveal from "./components/effects/GoldenTicketReveal";
 
 type GoldenEffectScope = "profile-only" | "content-global";
 
@@ -75,11 +76,12 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !isGoldenTicketActive(user) || !user.goldenTicket) return;
+    if (!user || user.role !== "beneficiary") return;
+    const now = new Date();
     const key = goldenTicketAnimationKey(
       user.id,
-      user.goldenTicket.year,
-      user.goldenTicket.month,
+      now.getFullYear(),
+      now.getMonth() + 1,
     );
     if (!localStorage.getItem(key)) {
       setShowGoldenTicketAnimation(true);
@@ -424,54 +426,12 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showGoldenTicketAnimation && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4"
-            onClick={() => setShowGoldenTicketAnimation(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0, y: 20 }}
-              transition={{
-                type: "spring",
-                stiffness: 260,
-                damping: 20,
-                delay: 0.1,
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl border-2 border-amber-400 p-10 max-w-sm w-full text-center"
-            >
-              <motion.div
-                animate={{
-                  rotate: [0, -10, 10, -10, 10, 0],
-                  scale: [1, 1.2, 1],
-                }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="text-6xl mb-4 select-none"
-              >
-                🎟️
-              </motion.div>
-              <h2 className="text-2xl font-black uppercase tracking-tight text-amber-500 mb-2">
-                Golden Ticket !
-              </h2>
-              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mb-6">
-                Tu as obtenu un Golden Ticket
-                <br />
-                les 3 prochains mois !<br />
-                Félicitations !
-              </p>
-              <button
-                onClick={() => setShowGoldenTicketAnimation(false)}
-                className="bg-amber-400 hover:bg-amber-500 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-wider transition-colors"
-              >
-                Super !
-              </button>
-            </motion.div>
-          </motion.div>
+        {showGoldenTicketAnimation && user && (
+          <GoldenTicketReveal
+            user={user}
+            isGolden={isGoldenBeneficiary}
+            onClose={() => setShowGoldenTicketAnimation(false)}
+          />
         )}
       </AnimatePresence>
     </div>
