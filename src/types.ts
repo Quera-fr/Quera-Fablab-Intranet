@@ -18,6 +18,7 @@ export interface User {
   address: string;
   goldenTicket?: GoldenTicket | null;
   profile_picture_url?: string;
+  total_points?: number;
 }
 
 export interface ProfilePageProps {
@@ -129,4 +130,41 @@ export interface PointsHistoryApiResponse {
   end_date: string;
   total_points: number;
   cumulative_series: PointsHistoryDatum[];
+}
+
+export interface ProfileMonthlyPointsDatum {
+  date: string;
+  day_label: string;
+  earned: number;
+  used: number;
+  penalties: number;
+  net: number;
+  cumulative: number;
+}
+
+export interface ProfileMonthlyPointsResponse {
+  user_id: number;
+  month: string;
+  start_date: string;
+  end_date: string;
+  points_gagnes: number;
+  points_utilises_boutique: number;
+  points_penalites: number;
+  points_actuels: number;
+  daily_series: ProfileMonthlyPointsDatum[];
+}
+
+export interface ProfileMonthlyHistoryDatum {
+  period: string;
+  period_label: string;
+  points_gagnes: number;
+  points_utilises_boutique: number;
+  points_penalites: number;
+  points_actuels: number;
+}
+
+export interface ProfileMonthlyHistoryResponse {
+  user_id: number;
+  months: number;
+  series: ProfileMonthlyHistoryDatum[];
 }

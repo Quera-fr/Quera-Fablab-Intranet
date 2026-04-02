@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Mail, Calendar, MapPin, Ticket } from "lucide-react";
 import {
-  PointsHistoryApiResponse,
-  PointsHistoryDatum,
+  ProfileMonthlyHistoryDatum,
+  ProfileMonthlyHistoryResponse,
+  ProfileMonthlyPointsResponse,
   ProfilePageProps,
   ShopArticle,
   UserUpdatePayload,
@@ -14,7 +15,11 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...user, password: "" });
   const [isSaving, setIsSaving] = useState(false);
-  const [pointsHistory, setPointsHistory] = useState<PointsHistoryDatum[]>([]);
+  const [monthlySummary, setMonthlySummary] =
+    useState<ProfileMonthlyPointsResponse | null>(null);
+  const [monthlyHistory, setMonthlyHistory] = useState<
+    ProfileMonthlyHistoryDatum[]
+  >([]);
   const [pointsLoading, setPointsLoading] = useState(false);
   const [pointsError, setPointsError] = useState<string | null>(null);
   const [userArticles, setUserArticles] = useState<ShopArticle[]>([]);
@@ -29,7 +34,8 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
 
   useEffect(() => {
     if (!showBeneficiaryInsights) {
-      setPointsHistory([]);
+      setMonthlySummary(null);
+      setMonthlyHistory([]);
       setUserArticles([]);
       setPointsLoading(false);
       setArticlesLoading(false);
@@ -47,23 +53,29 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
       setArticlesError(null);
 
       try {
-        const [historyRes, articlesRes] = await Promise.all([
-          fetch(`/api/quera-points/history/${user.id}`),
+        const [summaryRes, historyRes, articlesRes] = await Promise.all([
+          fetch(`/api/quera-points/profile/${user.id}`),
+          fetch(`/api/quera-points/profile/${user.id}/monthly-history?months=6`),
           fetch(`/api/articles/by-user/${user.id}`),
         ]);
 
+        if (!summaryRes.ok) {
+          throw new Error("Impossible de charger les indicateurs de points");
+        }
         if (!historyRes.ok) {
-          throw new Error("Impossible de charger l'historique de points");
+          throw new Error("Impossible de charger l'historique mensuel");
         }
         if (!articlesRes.ok) {
           throw new Error("Impossible de charger vos articles");
         }
 
-        const historyJson: PointsHistoryApiResponse = await historyRes.json();
+        const summaryJson: ProfileMonthlyPointsResponse = await summaryRes.json();
+        const historyJson: ProfileMonthlyHistoryResponse = await historyRes.json();
         const articlesJson: ShopArticle[] = await articlesRes.json();
 
         if (!active) return;
-        setPointsHistory(historyJson.cumulative_series ?? []);
+        setMonthlySummary(summaryJson);
+        setMonthlyHistory(historyJson.series ?? []);
         setUserArticles(Array.isArray(articlesJson) ? articlesJson : []);
       } catch (error) {
         if (!active) return;
@@ -137,10 +149,6 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
     () => userArticles.filter((article) => article.status === "validated"),
     [userArticles],
   );
-  const totalPoints =
-    pointsHistory.length > 0
-      ? pointsHistory[pointsHistory.length - 1].cumulative
-      : 0;
 
   const renderArticlesSection = (
     title: string,
@@ -431,12 +439,12 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
             isGolden={isGolden}
             pointsLoading={pointsLoading}
             pointsError={pointsError}
-            pointsHistory={pointsHistory}
-            totalPoints={totalPoints}
+            monthlySummary={monthlySummary}
+            monthlyHistory={monthlyHistory}
           />
 
           {/* Right Column - Vertical articles bandeau */}
-          <aside className="rounded-3xl p-3 border shadow-md bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 h-full xl:sticky xl:top-6">
+          <aside className=" p-4 border shadow-md bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 h-full xl:sticky xl:top-6">
             <h4 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-700 dark:text-zinc-200 mb-4">
               Articles
             </h4>

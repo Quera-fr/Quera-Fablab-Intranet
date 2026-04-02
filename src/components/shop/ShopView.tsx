@@ -29,29 +29,25 @@ export default function ShopView({ user }: Props) {
   }, []);
 
   useEffect(() => {
-    if (user.role === "beneficiary") {
-      fetch("/api/quera-points/totals")
-        .then((res) => res.json())
-        .then((data) => {
-          if (!Array.isArray(data)) {
-            console.error("Erreur API /api/quera-points/totals :", data);
-            setPointsRestants(null);
-            return;
-          }
-          const found = data.find((row: any) => row.user_id === user.id);
-          const validated = found ? found.total_points : 0;
-          fetch("/api/quera-points/locked")
-            .then((res) => res.json())
-            .then((lockedArray) => {
-              const lockedRow = Array.isArray(lockedArray)
-                ? lockedArray.find((row) => row.user_id === user.id)
-                : null;
-              const locked = lockedRow ? lockedRow.locked_points : 0;
-              setPointsRestants(validated + locked);
-            });
-        });
-    }
-  }, [user, articles]);
+    if (user.role !== "beneficiary") return;
+
+    fetch("/api/quera-points/totals")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          console.error("Erreur API /api/quera-points/totals :", data);
+          setPointsRestants(null);
+          return;
+        }
+
+        const found = data.find((row: any) => row.user_id === user.id);
+        setPointsRestants(found ? Number(found.total_points ?? 0) : 0);
+      })
+      .catch((error) => {
+        console.error("Erreur chargement points boutique:", error);
+        setPointsRestants(null);
+      });
+  }, [user.id, user.role, articles]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,15 +85,25 @@ export default function ShopView({ user }: Props) {
       }),
     });
     setShowForm(false);
-    setForm({ title: "", description: "", image_url: "", points: 1, imageFile: null });
-    fetch("/api/articles").then((res) => res.json()).then(setArticles);
+    setForm({
+      title: "",
+      description: "",
+      image_url: "",
+      points: 1,
+      imageFile: null,
+    });
+    fetch("/api/articles")
+      .then((res) => res.json())
+      .then(setArticles);
   };
 
   if (loading)
     return (
       <div className="max-w-4xl mx-auto py-8">
         <div className="text-center py-12 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
-          <p className="text-zinc-400 text-sm font-black uppercase tracking-widest">Chargement…</p>
+          <p className="text-zinc-400 text-sm font-black uppercase tracking-widest">
+            Chargement…
+          </p>
         </div>
       </div>
     );
@@ -131,7 +137,9 @@ export default function ShopView({ user }: Props) {
               Mes points Quera disponibles
             </span>
             <span className="text-lg font-black text-orange-700 dark:text-orange-300">
-              {pointsRestants !== null ? `${pointsRestants} pts` : "Chargement…"}
+              {pointsRestants !== null
+                ? `${pointsRestants} pts`
+                : "Chargement…"}
             </span>
           </div>
         </div>
@@ -140,7 +148,10 @@ export default function ShopView({ user }: Props) {
       {/* Grille */}
       {articles.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
-          <ShoppingBagIcon size={40} className="text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
+          <ShoppingBagIcon
+            size={40}
+            className="text-zinc-300 dark:text-zinc-700 mx-auto mb-4"
+          />
           <p className="text-zinc-400 text-sm font-black uppercase tracking-widest">
             Aucun article disponible
           </p>

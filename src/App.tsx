@@ -235,7 +235,11 @@ export default function App() {
               className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? "justify-center" : ""}`}
             >
               {!isSidebarCollapsed && user && (
-                <div
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("profile")}
+                  title="Ouvrir le profil"
+                  aria-label="Ouvrir le profil"
                   className={`hidden md:flex items-center gap-3 px-2 py-3 ${user && isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}
                 >
                   {/* Avatar expanded */}
@@ -260,7 +264,7 @@ export default function App() {
                       {user.role}
                     </p>
                   </div>
-                </div>
+                </button>
               )}
               {/* Avatar collapsed */}
               {isSidebarCollapsed && user && (

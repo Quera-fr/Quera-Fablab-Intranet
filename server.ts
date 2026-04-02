@@ -47,6 +47,76 @@ const withTransaction = async <T>(
   }
 };
 
+const PARIS_TIME_ZONE = "Europe/Paris";
+
+const toParisIsoDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: PARIS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+
+const getParisTodayIso = () => toParisIsoDate(new Date());
+
+const getCurrentMonthBounds = () => {
+  const nowParis = new Date(
+    new Date().toLocaleString("en-US", { timeZone: PARIS_TIME_ZONE }),
+  );
+  const start = new Date(nowParis.getFullYear(), nowParis.getMonth(), 1);
+  const end = new Date(nowParis.getFullYear(), nowParis.getMonth() + 1, 0);
+  return {
+    startIso: toParisIsoDate(start),
+    endIso: toParisIsoDate(end),
+  };
+};
+
+const datePartFromDateTimeLocal = (value: string) => {
+  if (!value) return "";
+  const [datePart] = value.split("T");
+  return datePart || "";
+};
+
+const ensureColumnExists = async (
+  conn: mysql.PoolConnection,
+  tableName: string,
+  columnName: string,
+  columnDefinition: string,
+) => {
+  const [columns] = await conn.query(
+    `SHOW COLUMNS FROM ${tableName} LIKE ?`,
+    [columnName],
+  );
+  if ((columns as any[]).length === 0) {
+    await conn.query(
+      `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`,
+    );
+  }
+};
+
+const syncUserMonthlyPoints = async (
+  conn: mysql.PoolConnection,
+  userId: number,
+) => {
+  const { startIso, endIso } = getCurrentMonthBounds();
+  const [sumRows] = await conn.query(
+    `SELECT COALESCE(SUM(delta), 0) AS total_points
+     FROM quera_points
+     WHERE beneficiary_user_id = ?
+       AND date >= ?
+       AND date <= ?
+       AND status IN ('validated', 'locked')`,
+    [userId, startIso, endIso],
+  );
+
+  const totalPoints = Number((sumRows as any[])[0]?.total_points ?? 0);
+  await conn.query(`UPDATE users SET total_points = ? WHERE id = ?`, [
+    totalPoints,
+    userId,
+  ]);
+  return totalPoints;
+};
+
 const publicPath = path.join(__dirname, "public");
 const uploadsPath = path.join(publicPath, "uploads");
 if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath);
@@ -65,7 +135,8 @@ async function initializeDatabase() {
         role VARCHAR(255),
         dob VARCHAR(255),
         address VARCHAR(255),
-        profile_picture_url VARCHAR(500)
+        profile_picture_url VARCHAR(500),
+        total_points INT NOT NULL DEFAULT 0
       )
     `);
 
@@ -121,6 +192,7 @@ async function initializeDatabase() {
         beneficiary_user_id INT NOT NULL,
         delta INT NOT NULL,
         status VARCHAR(50) DEFAULT 'validated',
+        movement_type VARCHAR(50) NOT NULL DEFAULT 'earned',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         comment TEXT,
         FOREIGN KEY(manager_user_id) REFERENCES users(id),
@@ -161,6 +233,50 @@ async function initializeDatabase() {
         FOREIGN KEY(created_by_user_id) REFERENCES users(id)
       )
     `);
+
+    await ensureColumnExists(
+      conn,
+      "users",
+      "total_points",
+      "INT NOT NULL DEFAULT 0",
+    );
+    await ensureColumnExists(
+      conn,
+      "quera_points",
+      "movement_type",
+      "VARCHAR(50) NOT NULL DEFAULT 'earned'",
+    );
+
+    await conn.query(`
+      UPDATE quera_points
+      SET movement_type = CASE
+        WHEN comment LIKE 'Réservation article #%'
+          THEN 'shop'
+        WHEN comment LIKE 'Remboursement suppression article #%'
+          THEN 'refund'
+        WHEN delta < 0
+          THEN 'penalty'
+        ELSE 'earned'
+      END
+      WHERE movement_type IS NULL
+         OR movement_type = ''
+         OR movement_type = 'earned'
+    `);
+
+    const { startIso, endIso } = getCurrentMonthBounds();
+    await conn.query(
+      `UPDATE users u
+       LEFT JOIN (
+         SELECT beneficiary_user_id AS user_id, COALESCE(SUM(delta), 0) AS total_points
+         FROM quera_points
+         WHERE date >= ?
+           AND date <= ?
+           AND status IN ('validated', 'locked')
+         GROUP BY beneficiary_user_id
+       ) p ON p.user_id = u.id
+       SET u.total_points = COALESCE(p.total_points, 0)`,
+      [startIso, endIso],
+    );
 
     console.log("Database tables initialized");
   } catch (error) {
@@ -256,7 +372,7 @@ async function startServer() {
       if (user) {
         const { password: _password, ...userWithoutPassword } = user;
 
-        const today = new Date().toISOString().split("T")[0];
+        const today = getParisTodayIso();
         const [ticketRows] = await pool.query(
           `SELECT id, month, year, starts_at, ends_at
            FROM golden_tickets
@@ -276,7 +392,7 @@ async function startServer() {
 
   app.get("/api/users", async (_req: Request, res: Response) => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getParisTodayIso();
       const [result] = await pool.query(
         `SELECT
 					u.id,
@@ -287,6 +403,7 @@ async function startServer() {
 					u.dob,
 					u.address,
           profile_picture_url,
+          u.total_points,
 					gt.id AS golden_ticket_id,
 					gt.month AS golden_ticket_month,
 					gt.year AS golden_ticket_year,
@@ -309,6 +426,7 @@ async function startServer() {
         dob: row.dob,
         address: row.address,
         profile_picture_url: row.profile_picture_url,
+        total_points: Number(row.total_points ?? 0),
         goldenTicket: row.golden_ticket_id
           ? {
               id: row.golden_ticket_id,
@@ -442,7 +560,7 @@ async function startServer() {
 
   app.get("/api/users/:id", async (req: Request, res: Response) => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getParisTodayIso();
       const [result] = await pool.query(
         `SELECT
 					u.id,
@@ -453,6 +571,7 @@ async function startServer() {
 					u.dob,
 					u.address,
           u.profile_picture_url,
+          u.total_points,
 					gt.id AS golden_ticket_id,
 					gt.month AS golden_ticket_month,
 					gt.year AS golden_ticket_year,
@@ -480,6 +599,7 @@ async function startServer() {
         dob: row.dob,
         address: row.address,
         profile_picture_url: row.profile_picture_url,
+        total_points: Number(row.total_points ?? 0),
         goldenTicket: row.golden_ticket_id
           ? {
               id: row.golden_ticket_id,
@@ -575,7 +695,7 @@ async function startServer() {
         end_time,
       } = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
+      const sessionDate = datePartFromDateTimeLocal(String(start_time));
       const [existingResult] = await pool.query(
         `SELECT COUNT(*) as count FROM sessions
          WHERE type = 'activity' AND DATE(start_time) = ?`,
@@ -664,7 +784,7 @@ async function startServer() {
         LEFT JOIN activities a ON s.activity_id = a.id
       `);
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getParisTodayIso();
 
       const sessionsWithParticipants = await Promise.all(
         (sessionsResult as any).map(async (s: any) => {
@@ -722,7 +842,7 @@ async function startServer() {
     try {
       const { start_time, end_time } = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
+      const sessionDate = datePartFromDateTimeLocal(String(start_time));
       const [existingResult] = await pool.query(
         `SELECT COUNT(*) as count FROM sessions
          WHERE type = 'homework_help' AND DATE(start_time) = ?`,
@@ -751,7 +871,7 @@ async function startServer() {
     try {
       const { start_time, end_time, user_id } = req.body;
 
-      const sessionDate = new Date(start_time).toISOString().split("T")[0];
+      const sessionDate = datePartFromDateTimeLocal(String(start_time));
       const [existingResult] = await pool.query(
         `SELECT COUNT(*) as count FROM sessions
          WHERE type = 'room_booking' AND DATE(start_time) = ?`,
@@ -1048,13 +1168,11 @@ async function startServer() {
   app.get("/api/quera-points/totals", async (_req: Request, res: Response) => {
     try {
       const [result] = await pool.query(
-        `SELECT qp.beneficiary_user_id AS user_id,
-            COALESCE(SUM(qp.delta), 0) AS total_points,
+        `SELECT u.id AS user_id,
+            u.total_points,
             u.firstname, u.lastname
-       FROM quera_points qp
-       JOIN users u ON u.id = qp.beneficiary_user_id
-       WHERE qp.status = 'validated'
-       GROUP BY qp.beneficiary_user_id, u.firstname, u.lastname
+       FROM users u
+       WHERE u.role = 'beneficiary'
        ORDER BY total_points DESC, u.lastname ASC, u.firstname ASC`,
       );
       res.json(
@@ -1071,6 +1189,212 @@ async function startServer() {
     }
   });
 
+  app.get(
+    "/api/quera-points/profile/:userId",
+    async (req: Request, res: Response) => {
+      try {
+        const userId = Number(req.params.userId);
+        if (Number.isNaN(userId)) {
+          return res.status(400).json({ error: "userId invalide" });
+        }
+
+        const monthParam = String(req.query.month || "").trim();
+        const monthDate =
+          /^\d{4}-\d{2}$/.test(monthParam)
+            ? new Date(`${monthParam}-01T00:00:00`)
+            : new Date();
+
+        const monthStart = new Date(
+          monthDate.getFullYear(),
+          monthDate.getMonth(),
+          1,
+        );
+        const monthEnd = new Date(
+          monthDate.getFullYear(),
+          monthDate.getMonth() + 1,
+          0,
+        );
+
+        const startIso = toParisIsoDate(monthStart);
+        const endIso = toParisIsoDate(monthEnd);
+
+        const [summaryRows] = await pool.query(
+          `SELECT
+             COALESCE(SUM(CASE WHEN movement_type = 'earned' AND delta > 0 THEN delta ELSE 0 END), 0) AS points_gagnes,
+             COALESCE(SUM(CASE WHEN movement_type = 'shop' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS points_utilises_boutique,
+             COALESCE(SUM(CASE WHEN movement_type = 'penalty' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS points_penalites,
+             COALESCE(SUM(delta), 0) AS points_actuels
+           FROM quera_points
+           WHERE beneficiary_user_id = ?
+             AND date >= ?
+             AND date <= ?
+             AND status IN ('validated', 'locked')`,
+          [userId, startIso, endIso],
+        );
+
+        const [dailyRows] = await pool.query(
+          `SELECT
+             date,
+             COALESCE(SUM(CASE WHEN movement_type = 'earned' AND delta > 0 THEN delta ELSE 0 END), 0) AS earned,
+             COALESCE(SUM(CASE WHEN movement_type = 'shop' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS used,
+             COALESCE(SUM(CASE WHEN movement_type = 'penalty' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS penalties,
+             COALESCE(SUM(delta), 0) AS net
+           FROM quera_points
+           WHERE beneficiary_user_id = ?
+             AND date >= ?
+             AND date <= ?
+             AND status IN ('validated', 'locked')
+           GROUP BY date
+           ORDER BY date ASC`,
+          [userId, startIso, endIso],
+        );
+
+        const dailyMap = new Map(
+          (dailyRows as any[]).map((row) => [String(row.date), row]),
+        );
+        const daily_series: {
+          date: string;
+          day_label: string;
+          earned: number;
+          used: number;
+          penalties: number;
+          net: number;
+          cumulative: number;
+        }[] = [];
+
+        let runningTotal = 0;
+        for (let day = 1; day <= monthEnd.getDate(); day += 1) {
+          const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+          const dateIso = toParisIsoDate(date);
+          const row = dailyMap.get(dateIso) as any | undefined;
+
+          const earned = Number(row?.earned ?? 0);
+          const used = Number(row?.used ?? 0);
+          const penalties = Number(row?.penalties ?? 0);
+          const net = Number(row?.net ?? 0);
+          runningTotal += net;
+
+          daily_series.push({
+            date: dateIso,
+            day_label: new Intl.DateTimeFormat("fr-FR", {
+              day: "2-digit",
+              month: "2-digit",
+            }).format(date),
+            earned,
+            used,
+            penalties,
+            net,
+            cumulative: runningTotal,
+          });
+        }
+
+        const summary = (summaryRows as any[])[0] ?? {};
+        return res.json({
+          user_id: userId,
+          month: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`,
+          start_date: startIso,
+          end_date: endIso,
+          points_gagnes: Number(summary.points_gagnes ?? 0),
+          points_utilises_boutique: Number(summary.points_utilises_boutique ?? 0),
+          points_penalites: Number(summary.points_penalites ?? 0),
+          points_actuels: Number(summary.points_actuels ?? 0),
+          daily_series,
+        });
+      } catch (e: any) {
+        return res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
+  app.get(
+    "/api/quera-points/profile/:userId/monthly-history",
+    async (req: Request, res: Response) => {
+      try {
+        const userId = Number(req.params.userId);
+        if (Number.isNaN(userId)) {
+          return res.status(400).json({ error: "userId invalide" });
+        }
+
+        const monthsCountRaw = Number(req.query.months ?? 6);
+        const monthsCount =
+          Number.isFinite(monthsCountRaw) && monthsCountRaw > 0
+            ? Math.min(Math.floor(monthsCountRaw), 12)
+            : 6;
+
+        const nowParis = new Date(
+          new Date().toLocaleString("en-US", { timeZone: PARIS_TIME_ZONE }),
+        );
+        const start = new Date(
+          nowParis.getFullYear(),
+          nowParis.getMonth() - monthsCount,
+          1,
+        );
+        const end = new Date(nowParis.getFullYear(), nowParis.getMonth(), 0);
+
+        const [rows] = await pool.query(
+          `SELECT
+             DATE_FORMAT(STR_TO_DATE(date, '%Y-%m-%d'), '%Y-%m') AS period,
+             MIN(date) AS period_start,
+             COALESCE(SUM(CASE WHEN movement_type = 'earned' AND delta > 0 THEN delta ELSE 0 END), 0) AS points_gagnes,
+             COALESCE(SUM(CASE WHEN movement_type = 'shop' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS points_utilises_boutique,
+             COALESCE(SUM(CASE WHEN movement_type = 'penalty' AND delta < 0 THEN ABS(delta) ELSE 0 END), 0) AS points_penalites,
+             COALESCE(SUM(delta), 0) AS points_actuels
+           FROM quera_points
+           WHERE beneficiary_user_id = ?
+             AND date >= ?
+             AND date <= ?
+             AND status IN ('validated', 'locked')
+           GROUP BY DATE_FORMAT(STR_TO_DATE(date, '%Y-%m-%d'), '%Y-%m')
+           ORDER BY period ASC`,
+          [userId, toParisIsoDate(start), toParisIsoDate(end)],
+        );
+
+        const byPeriod = new Map(
+          (rows as any[]).map((row) => [String(row.period), row]),
+        );
+
+        const series: {
+          period: string;
+          period_label: string;
+          points_gagnes: number;
+          points_utilises_boutique: number;
+          points_penalites: number;
+          points_actuels: number;
+        }[] = [];
+
+        for (let offset = monthsCount; offset >= 1; offset -= 1) {
+          const cursor = new Date(
+            nowParis.getFullYear(),
+            nowParis.getMonth() - offset,
+            1,
+          );
+          const period = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+          const row = byPeriod.get(period) as any | undefined;
+
+          series.push({
+            period,
+            period_label: new Intl.DateTimeFormat("fr-FR", {
+              month: "short",
+              year: "2-digit",
+            }).format(cursor),
+            points_gagnes: Number(row?.points_gagnes ?? 0),
+            points_utilises_boutique: Number(row?.points_utilises_boutique ?? 0),
+            points_penalites: Number(row?.points_penalites ?? 0),
+            points_actuels: Number(row?.points_actuels ?? 0),
+          });
+        }
+
+        return res.json({
+          user_id: userId,
+          months: monthsCount,
+          series,
+        });
+      } catch (e: any) {
+        return res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
   // GET historique cumulé des points validés sur 3 mois (par semaine)
   app.get(
     "/api/quera-points/history/:userId",
@@ -1085,10 +1409,8 @@ async function startServer() {
         endDate.setHours(0, 0, 0, 0);
         const startDate = new Date(endDate);
         startDate.setDate(startDate.getDate() - 89);
-
-        const toIsoDate = (date: Date) => date.toISOString().split("T")[0];
-        const startIso = toIsoDate(startDate);
-        const endIso = toIsoDate(endDate);
+        const startIso = toParisIsoDate(startDate);
+        const endIso = toParisIsoDate(endDate);
 
         const [result] = await pool.query(
           `SELECT date, COALESCE(SUM(delta), 0) AS points
@@ -1119,7 +1441,7 @@ async function startServer() {
         for (const row of dailyRows) {
           const rowDate = new Date(`${row.date}T00:00:00`);
           const weekStart = getStartOfWeek(rowDate);
-          const weekKey = toIsoDate(weekStart);
+          const weekKey = toParisIsoDate(weekStart);
           weeklyTotals.set(
             weekKey,
             (weeklyTotals.get(weekKey) ?? 0) + row.points,
@@ -1141,7 +1463,7 @@ async function startServer() {
           cursor <= lastWeek;
           cursor.setDate(cursor.getDate() + 7)
         ) {
-          const periodStart = toIsoDate(cursor);
+          const periodStart = toParisIsoDate(cursor);
           const points = weeklyTotals.get(periodStart) ?? 0;
           runningTotal += points;
 
@@ -1280,11 +1602,21 @@ async function startServer() {
             );
           }
 
+          const movementType = deltaInt < 0 ? "penalty" : "earned";
           await conn.query(
-            `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, comment)
-           VALUES (?, ?, ?, ?, ?)`,
-            [date, managerUserId, beneficiaryUserId, deltaInt, comment ?? null],
+            `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, movement_type, comment)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              date,
+              managerUserId,
+              beneficiaryUserId,
+              deltaInt,
+              movementType,
+              comment ?? null,
+            ],
           );
+
+          await syncUserMonthlyPoints(conn, beneficiaryUserId);
 
           return {
             totalForDay: totalForDayNum + deltaInt,
@@ -1317,7 +1649,7 @@ async function startServer() {
     "/api/golden-tickets/active",
     async (_req: Request, res: Response) => {
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = getParisTodayIso();
         const [result] = await pool.query(
           `SELECT gt.id, gt.beneficiary_user_id, gt.month, gt.year, gt.starts_at, gt.ends_at,
               u.firstname, u.lastname
@@ -1372,7 +1704,7 @@ async function startServer() {
       const lastDay = new Date(endYear, actualEndMonth, 0).getDate();
       const ends_at = `${endYear}-${String(actualEndMonth).padStart(2, "0")}-${lastDay}`;
 
-      const todayDate = new Date().toISOString().split("T")[0];
+      const todayDate = getParisTodayIso();
       await pool.query(
         `DELETE FROM golden_tickets WHERE starts_at <= ? AND ends_at >= ?`,
         [todayDate, todayDate],
@@ -1501,6 +1833,11 @@ async function startServer() {
       try {
         const articleId = req.params.id;
         const { user_id } = req.body;
+        const userId = Number(user_id);
+
+        if (Number.isNaN(userId)) {
+          return res.status(400).json({ error: "user_id invalide" });
+        }
 
         // Vérifier que l'article est disponible
         const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [
@@ -1515,49 +1852,39 @@ async function startServer() {
             .json({ error: "Article déjà réservé ou non disponible" });
         }
 
-        // Récupérer les points validés
-        const [validatedRows] = await pool.query(
-          `SELECT COALESCE(SUM(delta), 0) AS total_points
-   FROM quera_points
-   WHERE beneficiary_user_id = ? AND status = 'validated'`,
-          [user_id],
+        const [userRows] = await pool.query(
+          `SELECT total_points FROM users WHERE id = ?`,
+          [userId],
         );
-        const validated = Number((validatedRows as any)[0]?.total_points ?? 0);
-
-        // Récupérer les points bloqués
-        const [lockedRows] = await pool.query(
-          `SELECT COALESCE(SUM(delta), 0) AS locked_points
-   FROM quera_points
-   WHERE beneficiary_user_id = ? AND status = 'locked'`,
-          [user_id],
-        );
-        const locked = Number((lockedRows as any)[0]?.locked_points ?? 0);
-
-        const pointsRestants = validated + locked;
+        const pointsRestants = Number((userRows as any[])[0]?.total_points ?? 0);
         if (pointsRestants < article.points) {
           return res
             .status(400)
             .json({ error: "Pas assez de points pour réserver cet article." });
         }
 
-        // Réserver l'article
-        await pool.query(
-          `UPDATE articles SET reserved_by_user_id = ?, reserved_at = NOW(), status = 'reserved' WHERE id = ?`,
-          [user_id, articleId],
-        );
+        await withTransaction(async (conn) => {
+          // Réserver l'article
+          await conn.query(
+            `UPDATE articles SET reserved_by_user_id = ?, reserved_at = NOW(), status = 'reserved' WHERE id = ?`,
+            [userId, articleId],
+          );
 
-        // Insérer une ligne "locked" dans quera_points
-        await pool.query(
-          `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, status, comment)
-           VALUES (?, ?, ?, ?, 'locked', ?)`,
-          [
-            new Date().toISOString().split("T")[0], // date du jour
-            article.created_by_user_id, // manager_user_id (créateur de l'article)
-            user_id, // bénéficiaire
-            -article.points, // points bloqués (négatif)
-            `Réservation article #${articleId}`, // commentaire pour retrouver la ligne
-          ],
-        );
+          // Insérer une ligne "locked" dans quera_points
+          await conn.query(
+            `INSERT INTO quera_points (date, manager_user_id, beneficiary_user_id, delta, status, movement_type, comment)
+           VALUES (?, ?, ?, ?, 'locked', 'shop', ?)`,
+            [
+              toParisIsoDate(new Date()),
+              article.created_by_user_id,
+              userId,
+              -article.points,
+              `Réservation article #${articleId}`,
+            ],
+          );
+
+          await syncUserMonthlyPoints(conn, userId);
+        });
 
         res.json({ success: true });
       } catch (e: any) {
@@ -1571,6 +1898,10 @@ async function startServer() {
     try {
       const articleId = req.params.id;
       const { user_id } = req.body;
+      const userId = Number(user_id);
+      if (Number.isNaN(userId)) {
+        return res.status(400).json({ error: "user_id invalide" });
+      }
       // Vérifier que l'article est réservé par l'utilisateur
       const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [
         articleId,
@@ -1578,7 +1909,7 @@ async function startServer() {
       const article = (rows as any)[0];
       if (!article)
         return res.status(404).json({ error: "Article non trouvé" });
-      if (article.reserved_by_user_id !== user_id) {
+      if (Number(article.reserved_by_user_id) !== userId) {
         return res
           .status(403)
           .json({ error: "Vous ne pouvez pas annuler cette réservation" });
@@ -1588,16 +1919,20 @@ async function startServer() {
           .status(400)
           .json({ error: "Impossible d'annuler une réservation déjà validée" });
       }
-      // Annuler la réservation
-      await pool.query(
-        `UPDATE articles SET reserved_by_user_id = NULL, reserved_at = NULL, status = 'active' WHERE id = ?`,
-        [articleId],
-      );
-      // Supprimer la ligne de points locked associée
-      await pool.query(
-        `DELETE FROM quera_points WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
-        [user_id, `Réservation article #${articleId}`],
-      );
+      await withTransaction(async (conn) => {
+        // Annuler la réservation
+        await conn.query(
+          `UPDATE articles SET reserved_by_user_id = NULL, reserved_at = NULL, status = 'active' WHERE id = ?`,
+          [articleId],
+        );
+        // Supprimer la ligne de points locked associée
+        await conn.query(
+          `DELETE FROM quera_points WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
+          [userId, `Réservation article #${articleId}`],
+        );
+        await syncUserMonthlyPoints(conn, userId);
+      });
+
       res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -1616,18 +1951,23 @@ async function startServer() {
       if (!article)
         return res.status(404).json({ error: "Article non trouvé" });
 
-      // Valider la transaction de points
-      await pool.query(
-        `UPDATE quera_points SET status = 'validated'
+      await withTransaction(async (conn) => {
+        // Valider la transaction de points
+        await conn.query(
+          `UPDATE quera_points SET status = 'validated'
          WHERE beneficiary_user_id = ? AND comment = ? AND status = 'locked'`,
-        [article.reserved_by_user_id, `Réservation article #${article.id}`],
-      );
+          [article.reserved_by_user_id, `Réservation article #${article.id}`],
+        );
 
-      // Mettre à jour l'article
-      await pool.query(
-        `UPDATE articles SET status = 'validated' WHERE id = ?`,
-        [articleId],
-      );
+        // Mettre à jour l'article
+        await conn.query(`UPDATE articles SET status = 'validated' WHERE id = ?`, [
+          articleId,
+        ]);
+
+        if (article.reserved_by_user_id) {
+          await syncUserMonthlyPoints(conn, Number(article.reserved_by_user_id));
+        }
+      });
 
       res.json({ success: true });
     } catch (e: any) {
@@ -1638,11 +1978,59 @@ async function startServer() {
   // DELETE supprimer un article (admin/civic_service)
   app.delete("/api/articles/:id", async (req: Request, res: Response) => {
     try {
-      const articleId = req.params.id;
-      await pool.query("DELETE FROM articles WHERE id = ?", [articleId]);
+      const articleId = Number(req.params.id);
+      if (Number.isNaN(articleId)) {
+        return res.status(400).json({ error: "articleId invalide" });
+      }
+
+      await withTransaction(async (conn) => {
+        const [rows] = await conn.query("SELECT * FROM articles WHERE id = ?", [
+          articleId,
+        ]);
+        const article = (rows as any)[0];
+        if (!article) {
+          throw new Error("Article non trouvé");
+        }
+
+        // Si l'article avait été réservé/validé, on rembourse les points au bénéficiaire.
+        if (
+          article.reserved_by_user_id &&
+          (article.status === "reserved" || article.status === "validated")
+        ) {
+          // Supprime d'abord un éventuel mouvement "locked" restant.
+          await conn.query(
+            `DELETE FROM quera_points
+             WHERE beneficiary_user_id = ?
+               AND comment = ?
+               AND status = 'locked'`,
+            [article.reserved_by_user_id, `Réservation article #${article.id}`],
+          );
+
+          // Ajoute un mouvement positif pour rembourser les points.
+          await conn.query(
+            `INSERT INTO quera_points
+              (date, manager_user_id, beneficiary_user_id, delta, status, movement_type, comment)
+             VALUES (?, ?, ?, ?, 'validated', 'refund', ?)`,
+            [
+              toParisIsoDate(new Date()),
+              article.created_by_user_id,
+              article.reserved_by_user_id,
+              Number(article.points),
+              `Remboursement suppression article #${article.id}`,
+            ],
+          );
+
+          await syncUserMonthlyPoints(conn, Number(article.reserved_by_user_id));
+        }
+
+        await conn.query("DELETE FROM articles WHERE id = ?", [articleId]);
+      });
+
       res.json({ success: true });
     } catch (e: any) {
-      res.status(400).json({ error: e.message });
+      const message = e?.message || "Erreur";
+      const status = message === "Article non trouvé" ? 404 : 400;
+      res.status(status).json({ error: message });
     }
   });
 
