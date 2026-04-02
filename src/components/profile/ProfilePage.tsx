@@ -222,7 +222,7 @@ export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
       <div
         className={`bg-white dark:bg-zinc-900 rounded-3xl p-8 border shadow-sm relative overflow-hidden group ${
           isGolden
-            ? "border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50 via-white to-white dark:from-amber-950/20 dark:via-zinc-900 dark:to-zinc-900"
+            ? "border-amber-300/80 dark:border-amber-700 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-[1px]"
             : "border-zinc-200 dark:border-zinc-800"
         }`}
       >

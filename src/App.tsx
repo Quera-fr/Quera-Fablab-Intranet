@@ -27,6 +27,9 @@ import CalendarView from "./components/calendar/CalendarView";
 import MyRegistrationsView from "./components/registrations/MyRegistrationsView";
 import ProfileModal from "./components/profile/ProfileModal";
 import ShopView from "./components/shop/ShopView";
+import GoldenAmbientBackground from "./components/effects/GoldenAmbientBackground";
+
+type GoldenEffectScope = "profile-only" | "content-global";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,6 +48,12 @@ export default function App() {
   const [showGoldenTicketAnimation, setShowGoldenTicketAnimation] =
     useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const goldenEffectScope: GoldenEffectScope = "content-global";
+  const isGoldenBeneficiary =
+    !!user && user.role === "beneficiary" && isGoldenTicketActive(user);
+  const shouldRenderGoldenAmbient =
+    isGoldenBeneficiary &&
+    (goldenEffectScope === "content-global" || activeTab === "profile");
 
   useEffect(() => {
     if (isDarkMode) {
@@ -333,9 +342,11 @@ export default function App() {
       </aside>
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative isolate">
+        <GoldenAmbientBackground active={shouldRenderGoldenAmbient} />
+
         {/* Scrollable Area */}
-        <main className="flex-1 overflow-y-auto w-full">
+        <main className="relative z-10 flex-1 overflow-y-auto w-full">
           <div className="max-w-[1600px] mx-auto p-4 md:p-8">
             <AnimatePresence mode="wait">
               {activeTab === "planning" ? (
