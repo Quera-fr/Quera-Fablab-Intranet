@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Trash2, Pencil, Ticket } from "lucide-react";
 import { User, Role, QueraPointsTotal } from "../../types";
@@ -8,6 +8,9 @@ import { GoldenTicket } from "../../types";
 interface UserManagementProps {
   currentUser: User;
 }
+
+type SortKey = "name" | "role" | "points";
+type SortDirection = "asc" | "desc";
 
 const UserManagement = ({ currentUser }: UserManagementProps) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -46,6 +49,8 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
   const [goldenMonth, setGoldenMonth] = useState(new Date().getMonth() + 1);
   const [goldenYear, setGoldenYear] = useState(new Date().getFullYear());
   const [goldenTargetId, setGoldenTargetId] = useState<number | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const fetchUsers = async () => {
     const [usersRes, ticketRes] = await Promise.all([
@@ -148,6 +153,40 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
     );
   };
 
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const sortedUsers = useMemo(() => {
+    const getPoints = (u: User) => (u.role === "beneficiary" ? (pointsTotals.get(u.id) ?? 0) : 0);
+
+    const sorted = [...users].sort((a, b) => {
+      if (sortKey === "name") {
+        const aName = `${a.firstname} ${a.lastname}`.toLocaleLowerCase("fr-FR");
+        const bName = `${b.firstname} ${b.lastname}`.toLocaleLowerCase("fr-FR");
+        return aName.localeCompare(bName, "fr-FR");
+      }
+
+      if (sortKey === "role") {
+        return a.role.localeCompare(b.role, "fr-FR");
+      }
+
+      return getPoints(a) - getPoints(b);
+    });
+
+    return sortDirection === "asc" ? sorted : sorted.reverse();
+  }, [users, pointsTotals, sortKey, sortDirection]);
+
+  const sortIndicator = (key: SortKey) => {
+    if (sortKey !== key) return "↕";
+    return sortDirection === "asc" ? "↑" : "↓";
+  };
+
   const handleAssignGoldenTicket = async () => {
     if (!goldenTargetId) return;
     await fetch("/api/golden-tickets", {
@@ -219,17 +258,35 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
                 </th>
               )}
               <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">
-                Nom
+                <button
+                  type="button"
+                  onClick={() => toggleSort("name")}
+                  className="inline-flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  Nom <span aria-hidden>{sortIndicator("name")}</span>
+                </button>
               </th>
               <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">
-                Rôle
+                <button
+                  type="button"
+                  onClick={() => toggleSort("role")}
+                  className="inline-flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  Rôle <span aria-hidden>{sortIndicator("role")}</span>
+                </button>
               </th>
               <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest">
                 Email
               </th>
               {isAdminOrCivic && (
                 <th className="p-4 font-bold text-zinc-500 text-[10px] uppercase tracking-widest text-center">
-                  Pts Quera
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("points")}
+                    className="inline-flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    Pts Quera <span aria-hidden>{sortIndicator("points")}</span>
+                  </button>
                 </th>
               )}
               {isAdmin && (
@@ -240,7 +297,7 @@ const UserManagement = ({ currentUser }: UserManagementProps) => {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {sortedUsers.map((u) => (
               <tr
                 key={u.id}
                 className={`border-t transition-colors ${

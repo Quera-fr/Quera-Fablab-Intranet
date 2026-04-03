@@ -10,6 +10,7 @@ import {
   Sun,
   Users,
   UserRound,
+  ShoppingBagIcon,
 } from "lucide-react";
 import { User } from "./types";
 import {
@@ -25,11 +26,21 @@ import ProfilePage from "./components/profile/ProfilePage";
 import CalendarView from "./components/calendar/CalendarView";
 import MyRegistrationsView from "./components/registrations/MyRegistrationsView";
 import ProfileModal from "./components/profile/ProfileModal";
+import ShopView from "./components/shop/ShopView";
+import GoldenAmbientBackground from "./components/effects/GoldenAmbientBackground";
+import GoldenTicketReveal from "./components/effects/GoldenTicketReveal";
+
+type GoldenEffectScope = "profile-only" | "content-global";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "planning" | "civic_calendar" | "users" | "my_registrations" | "profile"
+    | "planning"
+    | "civic_calendar"
+    | "users"
+    | "my_registrations"
+    | "profile"
+    | "shop"
   >("planning");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -38,6 +49,12 @@ export default function App() {
   const [showGoldenTicketAnimation, setShowGoldenTicketAnimation] =
     useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const goldenEffectScope: GoldenEffectScope = "content-global";
+  const isGoldenBeneficiary =
+    !!user && user.role === "beneficiary" && isGoldenTicketActive(user);
+  const shouldRenderGoldenAmbient =
+    isGoldenBeneficiary &&
+    (goldenEffectScope === "content-global" || activeTab === "profile");
 
   useEffect(() => {
     if (isDarkMode) {
@@ -59,11 +76,12 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !isGoldenTicketActive(user) || !user.goldenTicket) return;
+    if (!user || user.role !== "beneficiary") return;
+    const now = new Date();
     const key = goldenTicketAnimationKey(
       user.id,
-      user.goldenTicket.year,
-      user.goldenTicket.month,
+      now.getFullYear(),
+      now.getMonth() + 1,
     );
     if (!localStorage.getItem(key)) {
       setShowGoldenTicketAnimation(true);
@@ -165,22 +183,37 @@ export default function App() {
                 <span className="hidden md:inline">Mes Inscriptions</span>
               )}
             </button>
-            {user && (user.role === "admin" || user.role === "civic_service") && (
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === "users"
-                    ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
-                    : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
-                title="Utilisateurs"
-              >
-                <Users size={18} className="shrink-0" />{" "}
-                {!isSidebarCollapsed && (
-                  <span className="hidden md:inline">Utilisateurs</span>
-                )}
-              </button>
-            )}
+            {user &&
+              (user.role === "admin" || user.role === "civic_service") && (
+                <button
+                  onClick={() => setActiveTab("users")}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    activeTab === "users"
+                      ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
+                      : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
+                  title="Utilisateurs"
+                >
+                  <Users size={18} className="shrink-0" />{" "}
+                  {!isSidebarCollapsed && (
+                    <span className="hidden md:inline">Utilisateurs</span>
+                  )}
+                </button>
+              )}
+            <button
+              onClick={() => setActiveTab("shop")}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === "shop"
+                  ? "bg-black text-white shadow-xl dark:bg-white dark:text-black"
+                  : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              } ${isSidebarCollapsed ? "justify-center px-0 w-12" : "w-full"}`}
+              title="Boutique"
+            >
+              <ShoppingBagIcon size={18} className="shrink-0" />{" "}
+              {!isSidebarCollapsed && (
+                <span className="hidden md:inline">Boutique</span>
+              )}
+            </button>
           </nav>
 
           <div className="mt-auto w-full space-y-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
@@ -213,7 +246,11 @@ export default function App() {
               className={`flex flex-col md:flex-row items-center gap-2 px-2 ${isSidebarCollapsed ? "justify-center" : ""}`}
             >
               {!isSidebarCollapsed && user && (
-                <div
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("profile")}
+                  title="Ouvrir le profil"
+                  aria-label="Ouvrir le profil"
                   className={`hidden md:flex items-center gap-3 px-2 py-3 ${user && isGoldenTicketActive(user) ? goldenClasses.card : "bg-black text-white"} bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 grow overflow-hidden`}
                 >
                   {/* Avatar expanded */}
@@ -238,7 +275,7 @@ export default function App() {
                       {user.role}
                     </p>
                   </div>
-                </div>
+                </button>
               )}
               {/* Avatar collapsed */}
               {isSidebarCollapsed && user && (
@@ -307,9 +344,11 @@ export default function App() {
       </aside>
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative isolate">
+        <GoldenAmbientBackground active={shouldRenderGoldenAmbient} />
+
         {/* Scrollable Area */}
-        <main className="flex-1 overflow-y-auto w-full">
+        <main className="relative z-10 flex-1 overflow-y-auto w-full">
           <div className="max-w-[1600px] mx-auto p-4 md:p-8">
             <AnimatePresence mode="wait">
               {activeTab === "planning" ? (
@@ -360,8 +399,17 @@ export default function App() {
                 >
                   <MyRegistrationsView user={user} />
                 </motion.div>
-              ) : null }
-             </AnimatePresence>
+              ) : activeTab === "shop" && user ? (
+                <motion.div
+                  key="shop"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <ShopView user={user} />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
         </main>
       </div>
@@ -378,54 +426,12 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showGoldenTicketAnimation && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4"
-            onClick={() => setShowGoldenTicketAnimation(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0, y: 20 }}
-              transition={{
-                type: "spring",
-                stiffness: 260,
-                damping: 20,
-                delay: 0.1,
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl border-2 border-amber-400 p-10 max-w-sm w-full text-center"
-            >
-              <motion.div
-                animate={{
-                  rotate: [0, -10, 10, -10, 10, 0],
-                  scale: [1, 1.2, 1],
-                }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="text-6xl mb-4 select-none"
-              >
-                🎟️
-              </motion.div>
-              <h2 className="text-2xl font-black uppercase tracking-tight text-amber-500 mb-2">
-                Golden Ticket !
-              </h2>
-              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mb-6">
-                Tu as obtenu un Golden Ticket
-                <br />
-                les 3 prochains mois !<br />
-                Félicitations !
-              </p>
-              <button
-                onClick={() => setShowGoldenTicketAnimation(false)}
-                className="bg-amber-400 hover:bg-amber-500 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-wider transition-colors"
-              >
-                Super !
-              </button>
-            </motion.div>
-          </motion.div>
+        {showGoldenTicketAnimation && user && (
+          <GoldenTicketReveal
+            user={user}
+            isGolden={isGoldenBeneficiary}
+            onClose={() => setShowGoldenTicketAnimation(false)}
+          />
         )}
       </AnimatePresence>
     </div>

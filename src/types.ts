@@ -18,7 +18,15 @@ export interface User {
   address: string;
   goldenTicket?: GoldenTicket | null;
   profile_picture_url?: string;
+  total_points?: number;
 }
+
+export interface ProfilePageProps {
+  user: User;
+  onUpdate: (user: User) => void;
+}
+
+export type UserUpdatePayload = Partial<User> & { password?: string };
 
 export interface Activity {
   id: number;
@@ -87,4 +95,76 @@ export interface QueraPointsTotal {
   firstname: string;
   lastname: string;
   total_points: number;
+}
+
+export type ShopArticleStatus = 'active' | 'reserved' | 'validated';
+
+export type ShopArticle = {
+  id: number;
+  title: string;
+  description: string;
+  image_url: string | null;
+  points: number;
+  status: ShopArticleStatus;
+  reserved_by_user_id: number | null;
+  reserved_at: string | null;
+  reserved_firstname?: string;
+  reserved_lastname?: string;
+};
+
+export interface PointsHistoryDatum {
+  period_start: string;
+  period_label: string;
+  points: number;
+  cumulative: number;
+}
+
+export interface PointsHistoryResponse {
+  total_points: number;
+  cumulative_series: PointsHistoryDatum[];
+}
+
+export interface PointsHistoryApiResponse {
+  user_id: number;
+  start_date: string;
+  end_date: string;
+  total_points: number;
+  cumulative_series: PointsHistoryDatum[];
+}
+
+export interface ProfileMonthlyPointsDatum {
+  date: string;
+  day_label: string;
+  earned: number;
+  used: number;
+  penalties: number;
+  net: number;
+  cumulative: number;
+}
+
+export interface ProfileMonthlyPointsResponse {
+  user_id: number;
+  month: string;
+  start_date: string;
+  end_date: string;
+  points_gagnes: number;
+  points_utilises_boutique: number;
+  points_penalites: number;
+  points_actuels: number;
+  daily_series: ProfileMonthlyPointsDatum[];
+}
+
+export interface ProfileMonthlyHistoryDatum {
+  period: string;
+  period_label: string;
+  points_gagnes: number;
+  points_utilises_boutique: number;
+  points_penalites: number;
+  points_actuels: number;
+}
+
+export interface ProfileMonthlyHistoryResponse {
+  user_id: number;
+  months: number;
+  series: ProfileMonthlyHistoryDatum[];
 }
