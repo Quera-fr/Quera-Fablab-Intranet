@@ -77,6 +77,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user || user.role !== "beneficiary") return;
+    if (!isGoldenTicketActive(user)) return;
     const now = new Date();
     const key = goldenTicketAnimationKey(
       user.id,

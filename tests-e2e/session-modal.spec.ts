@@ -50,7 +50,7 @@ async function loginAsAdmin(page: any) {
     await page.fill('input[type="email"]', mockAdmin.email);
     await page.fill('input[type="password"]', "admin123");
     await Promise.all([
-        page.waitForResponse((r) => r.url().includes("/api/login")),
+        page.waitForResponse((r: Response) => r.url().includes("/api/login")),
         page.click('button[type="submit"]'),
     ]);
     await page.waitForLoadState("networkidle");
@@ -262,13 +262,9 @@ test.describe("SessionModal - Bénéficiaire", () => {
     test("ouvre la modale, affiche infos et permet inscription/désinscription", async ({
         page,
     }) => {
-        // try primary session chip selector, fallback to generic text if none visible
-        let sessionCard = page
+        const sessionCard = page
             .locator("div.cursor-pointer.relative.group.overflow-hidden")
             .first();
-        if (!(await sessionCard.isVisible().catch(() => false))) {
-            sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
-        }
         await expect(sessionCard).toBeVisible({ timeout: 15000 });
         await sessionCard.click();
 
@@ -292,12 +288,16 @@ test.describe("SessionModal - Bénéficiaire", () => {
         const sessionCard = page
             .locator("div.cursor-pointer.relative.group.overflow-hidden")
             .first();
+        await expect(sessionCard).toBeVisible({ timeout: 15000 });
         await sessionCard.click();
         await expect(page.locator("div.fixed.inset-0 h3")).toBeVisible();
 
-        await page.click("div.fixed.inset-0", { position: { x: 10, y: 10 } });
+        // Click outside the modal card but not under the sidebar (sidebar is ~288px wide at desktop)
+        await page.mouse.click(800, 30);
         if (await page.locator("div.fixed.inset-0").isVisible()) {
+            // Fallback: click the X button inside the modal
             const closeBtn = page
+                .locator("div.fixed.inset-0")
                 .locator("button")
                 .filter({ has: page.locator("svg") })
                 .first();
@@ -339,12 +339,9 @@ test.describe("SessionModal - Administrateur", () => {
     });
 
     test("vois boutons admin et peut fermer", async ({ page }) => {
-        let sessionCard = page
+        const sessionCard = page
             .locator("div.cursor-pointer.relative.group.overflow-hidden")
             .first();
-        if (!(await sessionCard.isVisible().catch(() => false))) {
-            sessionCard = page.getByText(/Atelier|Foot|Soutien|Numérique/i).first();
-        }
         await expect(sessionCard).toBeVisible({ timeout: 15000 });
         await sessionCard.click();
 
@@ -355,21 +352,20 @@ test.describe("SessionModal - Administrateur", () => {
         await expect(page.locator('[class*="rs__control"]').first()).toBeVisible();
         await expect(page.locator('[class*="rs__control"]').nth(1)).toBeVisible();
 
-        const closeBtn = page
+        const modal = page.locator("div.fixed.inset-0");
+        const closeBtn = modal
             .locator("button")
             .filter({ has: page.locator("svg") })
             .first();
         await closeBtn.click({ force: true });
         try {
-            if (await page.locator("div.fixed.inset-0").isVisible()) {
-                await page
-                    .locator("div.fixed.inset-0")
-                    .click({ position: { x: 5, y: 5 }, force: true });
+            if (await modal.isVisible()) {
+                await modal.click({ position: { x: 5, y: 5 }, force: true });
             }
         } catch {
             // element might detach while closing, ignore.
         }
-        await expect(page.locator("div.fixed.inset-0")).not.toBeVisible({
+        await expect(modal).not.toBeVisible({
             timeout: 5000,
         });
     });

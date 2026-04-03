@@ -62,7 +62,7 @@ async function loginAsAdmin(page: any) {
     await page.fill('input[type="password"]', 'admin123');
 
     await Promise.all([
-        page.waitForResponse(r => r.url().includes('/api/login')),
+        page.waitForResponse((r: any) => r.url().includes('/api/login')),
         page.click('button[type="submit"]'),
     ]);
 
