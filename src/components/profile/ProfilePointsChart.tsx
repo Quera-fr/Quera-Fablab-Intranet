@@ -162,11 +162,6 @@ export default function ProfilePointsChart({
         </div>
       </div>
 
-      {isGolden && (
-        <p className="mt-5 text-xs text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2">
-          Golden Ticket actif: cette mise en avant reste visible sur votre profil et vos ateliers.
-        </p>
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import UserManagement from "./UserManagement";
 import { User } from "../../types";
@@ -81,4 +81,84 @@ it("displays Add and Golden Ticket buttons side by side (grouped right)", async 
     // Both should be visible in the top action area
     expect(addBtn.parentElement?.className).toContain("flex");
   });
+});
+
+it("sorts users by name, role and points when clicking headers", async () => {
+  const sortableUsers: User[] = [
+    {
+      id: 1,
+      firstname: "Zoe",
+      lastname: "Alpha",
+      role: "volunteer",
+      email: "zoe@test.com",
+      dob: "1990-01-01",
+      address: "...",
+    },
+    {
+      id: 2,
+      firstname: "Bob",
+      lastname: "Bravo",
+      role: "beneficiary",
+      email: "bob@test.com",
+      dob: "2002-02-02",
+      address: "...",
+    },
+    {
+      id: 3,
+      firstname: "Alice",
+      lastname: "Charlie",
+      role: "beneficiary",
+      email: "alice@test.com",
+      dob: "2003-03-03",
+      address: "...",
+    },
+  ];
+
+  (global.fetch as Mock).mockImplementation(async (url) => {
+    if (url === "/api/users") {
+      return { ok: true, json: async () => sortableUsers };
+    }
+    if (url === "/api/quera-points/totals") {
+      return {
+        ok: true,
+        json: async () => [
+          { user_id: 2, total_points: 30 },
+          { user_id: 3, total_points: 5 },
+        ],
+      };
+    }
+    if (url === "/api/golden-tickets/active") {
+      return { ok: true, json: async () => null };
+    }
+    return { ok: true, json: async () => [] };
+  });
+
+  render(<UserManagement currentUser={mockAdminUser} />);
+
+  await waitFor(() => {
+    expect(screen.getByText("Zoe Alpha")).toBeInTheDocument();
+  });
+
+  const getDisplayedNames = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => {
+        const cell = within(row).getAllByRole("cell")[1];
+        return cell.textContent ?? "";
+      });
+
+  expect(getDisplayedNames()[0]).toContain("Alice Charlie");
+
+  fireEvent.click(screen.getByRole("button", { name: /Nom/i }));
+  expect(getDisplayedNames()[0]).toContain("Zoe Alpha");
+
+  fireEvent.click(screen.getByRole("button", { name: /Rôle/i }));
+  expect(getDisplayedNames()[0]).toContain("Bob Bravo");
+
+  fireEvent.click(screen.getByRole("button", { name: /Pts Quera/i }));
+  expect(getDisplayedNames()[0]).toContain("Zoe Alpha");
+
+  fireEvent.click(screen.getByRole("button", { name: /Pts Quera/i }));
+  expect(getDisplayedNames()[0]).toContain("Bob Bravo");
 });

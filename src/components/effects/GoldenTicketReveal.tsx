@@ -104,102 +104,104 @@ export default function GoldenTicketReveal({
 
           {/* ── FACE ARRIÈRE GOLDEN ── */}
           {isGolden && (
-          <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border-4 border-amber-300 shadow-2xl shadow-amber-400/50 bg-linear-to-b from-amber-400 via-yellow-300 to-amber-500 flex flex-col items-center p-5 gap-3">
-            {/* Reflet brillant */}
-            <div className="absolute inset-0 bg-linear-to-br from-white/35 via-transparent to-transparent pointer-events-none" />
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-linear-to-b from-white/20 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border-4 border-amber-300 shadow-2xl shadow-amber-400/50 bg-linear-to-b from-amber-400 via-yellow-300 to-amber-500 flex flex-col items-center p-5 gap-3">
+              {/* Reflet brillant */}
+              <div className="absolute inset-0 bg-linear-to-br from-white/35 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-linear-to-b from-white/20 to-transparent pointer-events-none" />
 
+              {/* Avatar */}
+              <div className="w-24 h-24 rounded-full border-4 border-amber-200 shadow-xl overflow-hidden bg-amber-300 flex items-center justify-center text-amber-900 font-black text-2xl mt-6 shrink-0">
+                {user.profile_picture_url ? (
+                  <img
+                    src={user.profile_picture_url}
+                    alt={initials}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
+              </div>
 
-            {/* Avatar */}
-            <div className="w-24 h-24 rounded-full border-4 border-amber-200 shadow-xl overflow-hidden bg-amber-300 flex items-center justify-center text-amber-900 font-black text-2xl mt-6 shrink-0">
-              {user.profile_picture_url ? (
-                <img
-                  src={user.profile_picture_url}
-                  alt={initials}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                initials
+              {/* Nom */}
+              <div className="text-center leading-tight">
+                <p className="font-black text-amber-900 uppercase tracking-tight text-xl">
+                  {user.firstname}
+                </p>
+                <p className="font-black text-amber-900 uppercase tracking-tight text-xl">
+                  {user.lastname}
+                </p>
+              </div>
+
+              {/* Badge Golden Ticket */}
+              <div className="flex items-center gap-1.5 bg-amber-900/20 border border-amber-800/30 rounded-full px-3 py-1">
+                <Ticket size={11} className="text-amber-900" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-900">
+                  Golden Ticket
+                </span>
+              </div>
+
+              {/* Validité */}
+              {monthLabel && (
+                <p className="text-[10px] text-amber-800/70 font-bold uppercase tracking-wider text-center">
+                   Tu as obtenu un Golden Ticket
+                <br />
+                pour les 3 prochains mois !<br />
+                Félicitations !
+                </p>
               )}
-            </div>
 
-            {/* Nom */}
-            <div className="text-center leading-tight">
-              <p className="font-black text-amber-900 uppercase tracking-tight text-xl">
-                {user.firstname}
-              </p>
-              <p className="font-black text-amber-900 uppercase tracking-tight text-xl">
-                {user.lastname}
-              </p>
+              {/* Étoiles déco */}
+              <div className="mt-2 text-amber-600/80 text-sm tracking-[0.4em] select-none">
+                ★ ★ ★
+              </div>
             </div>
-
-            {/* Badge Golden Ticket */}
-            <div className="flex items-center gap-1.5 bg-amber-900/20 border border-amber-800/30 rounded-full px-3 py-1">
-              <Ticket size={11} className="text-amber-900" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-900">
-                Golden Ticket
-              </span>
-            </div>
-
-            {/* Validité */}
-            {monthLabel && (
-              <p className="text-[10px] text-amber-800/70 font-bold uppercase tracking-wider text-center">
-                {monthLabel}
-              </p>
-            )}
-
-            {/* Étoiles déco */}
-            <div className="mt-auto text-amber-600/80 text-sm tracking-[0.4em] select-none">
-              ★ ★ ★
-            </div>
-          </div>
           )}
 
           {/* ── FACE ARRIÈRE NON-GOLDEN ── */}
           {!isGolden && (
-          <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border-4 border-zinc-600 shadow-2xl bg-linear-to-b from-zinc-800 via-zinc-900 to-zinc-950 flex flex-col items-center p-5 gap-3">
+            <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border-4 border-zinc-600 shadow-2xl bg-linear-to-b from-zinc-800 via-zinc-900 to-zinc-950 flex flex-col items-center p-5 gap-3">
+              {/* Avatar grisé */}
+              <div className="w-24 h-24 rounded-full border-4 border-zinc-600 shadow-xl overflow-hidden bg-zinc-700 flex items-center justify-center text-zinc-400 font-black text-2xl mt-6 shrink-0 grayscale">
+                {user.profile_picture_url ? (
+                  <img
+                    src={user.profile_picture_url}
+                    alt={initials}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
+              </div>
 
-            {/* Avatar grisé */}
-            <div className="w-24 h-24 rounded-full border-4 border-zinc-600 shadow-xl overflow-hidden bg-zinc-700 flex items-center justify-center text-zinc-400 font-black text-2xl mt-6 shrink-0 grayscale">
-              {user.profile_picture_url ? (
-                <img
-                  src={user.profile_picture_url}
-                  alt={initials}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
+              {/* Nom */}
+              <div className="text-center leading-tight">
+                <p className="font-black text-zinc-300 uppercase tracking-tight text-xl">
+                  {user.firstname}
+                </p>
+                <p className="font-black text-zinc-300 uppercase tracking-tight text-xl">
+                  {user.lastname}
+                </p>
+              </div>
 
-            {/* Nom */}
-            <div className="text-center leading-tight">
-              <p className="font-black text-zinc-300 uppercase tracking-tight text-xl">
-                {user.firstname}
+              {/* Badge négatif */}
+              <div className="flex items-center gap-1.5 bg-zinc-700/60 border border-zinc-600 rounded-full px-3 py-1">
+                <TicketX size={11} className="text-zinc-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  Pas de Golden Ticket
+                </span>
+              </div>
+
+              <p className="text-[10px] text-zinc-500 text-center leading-relaxed px-2">
+                Continue à participer pour
+                <br />
+                décrocher le Golden Ticket !
               </p>
-              <p className="font-black text-zinc-300 uppercase tracking-tight text-xl">
-                {user.lastname}
-              </p>
-            </div>
 
-            {/* Badge négatif */}
-            <div className="flex items-center gap-1.5 bg-zinc-700/60 border border-zinc-600 rounded-full px-3 py-1">
-              <TicketX size={11} className="text-zinc-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                Pas de Golden Ticket
-              </span>
+              {/* Étoiles grisées */}
+              <div className="mt-auto text-zinc-700 text-sm tracking-[0.4em] select-none">
+                ★ ★ ★
+              </div>
             </div>
-
-            <p className="text-[10px] text-zinc-500 text-center leading-relaxed px-2">
-              Continue à participer pour
-              <br />décrocher le Golden Ticket !
-            </p>
-
-            {/* Étoiles grisées */}
-            <div className="mt-auto text-zinc-700 text-sm tracking-[0.4em] select-none">
-              ★ ★ ★
-            </div>
-          </div>
           )}
         </div>
       </motion.div>
