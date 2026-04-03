@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       host: true,
-      allowedHosts: ['*'],
+      allowedHosts: ['intranet-quera.synology.me', '*'],
     },
     test: {
       globals: true,
