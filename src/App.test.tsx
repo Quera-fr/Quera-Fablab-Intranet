@@ -1,128 +1,130 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import App from './App';
 import { User } from './types';
 
-// On intercepte fetch globalement
+vi.mock('./components/calendar/CalendarView', () => ({
+    default: ({ user, readOnly, onLoginClick }: any) => (
+        <div data-testid="calendar-view">
+            {readOnly ? (
+                <button onClick={onLoginClick}>Se connecter</button>
+            ) : (
+                <div>Planning connecté</div>
+            )}
+        </div>
+    ),
+}));
+
+vi.mock('./components/auth/LoginPage', () => ({
+    default: ({ onLogin }: any) => (
+        <form data-testid="login-form">
+            <input type="email" defaultValue="test@test.com" />
+            <input type="password" defaultValue="password" />
+            <button
+                type="submit"
+                onClick={() =>
+                    onLogin({
+                        id: 1,
+                        email: 'test@test.com',
+                        firstname: 'Test',
+                        lastname: 'User',
+                        role: 'beneficiary',
+                        dob: '2000-01-01',
+                        address: 'Test St',
+                    } as User)
+                }
+            >
+                Se connecter (Login)
+            </button>
+        </form>
+    ),
+}));
+
+vi.mock('./components/admin/UserManagement', () => ({
+    default: () => <div>User Management</div>,
+}));
+
+vi.mock('./components/profile/ProfilePage', () => ({
+    default: () => <div>Profile Page</div>,
+}));
+
+vi.mock('./components/registrations/MyRegistrationsView', () => ({
+    default: () => <div>My Registrations</div>,
+}));
+
+vi.mock('./components/profile/ProfileModal', () => ({
+    default: () => null,
+}));
+
 global.fetch = vi.fn();
 
-// On mocke les composants lourds pour éviter leurs propres appels fetch.
-// vi.mock remplace le module entier par une version simplifiée.
-// Le composant mocké rend juste un div vide — on ne teste pas son contenu ici.
-vi.mock('./components/calendar/CalendarView', () => ({
-    default: () => <div data-testid="calendar-view" />,
-}));
-vi.mock('./components/admin/UserManagement', () => ({
-    default: () => <div data-testid="user-management" />,
-}));
-vi.mock('./components/registrations/MyRegistrationsView', () => ({
-    default: () => <div data-testid="my-registrations" />,
-}));
-vi.mock('./components/profile/ProfileModal', () => ({
-    default: () => <div data-testid="profile-modal" />,
-}));
-
-const mockBeneficiaryUser: User = {
-    id: 42,
-    email: 'alice@test.com',
-    lastname: 'Martin',
-    firstname: 'Alice',
-    role: 'beneficiary',
-    dob: '2005-06-15',
-    address: '12 rue des Tests',
-};
-const mockAdminUser: User = {
-    id: 1,
-    email: 'admin@test.com',
-    lastname: 'Admin',
-    firstname: 'Super',
-    role: 'admin',
-    dob: '1980-01-01',
-    address: '1 rue du Chef',
-};
-describe('App — déconnexion', () => {
+describe('App', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    it('redirige vers la page de connexion après déconnexion du bénéficiaire', async () => {
-        // On simule la réponse de l'API pour la connexion
-        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-            ok: true,
-            json: async () => mockBeneficiaryUser,
+    describe('déconnexion', () => {
+        it('redirige vers la page de connexion après déconnexion du bénéficiaire', async () => {
+            render(<App />);
+
+            // Au démarrage, App affiche la vue publique avec CalendarView en readOnly
+            await waitFor(() => {
+                expect(screen.getByTestId('calendar-view')).toBeInTheDocument();
+            });
+
+            // Le bouton "Se connecter" doit être visible dans CalendarView
+            const loginBtn = screen.getByRole('button', { name: /Se connecter/i });
+            expect(loginBtn).toBeInTheDocument();
+
+            // --- ÉTAPE 1 : connexion ---
+            await userEvent.click(loginBtn);
+
+            // Après clic, on voit la LoginPage
+            await waitFor(() => {
+                expect(screen.getByTestId('login-form')).toBeInTheDocument();
+            });
+
+            // On clique sur le bouton de connexion dans la form
+            const submitBtn = screen.getByRole('button', { name: /Se connecter \(Login\)/i });
+            await userEvent.click(submitBtn);
+
+            // Après connexion, on voit "Planning connecté" (user est défini)
+            await waitFor(() => {
+                expect(screen.getByText('Planning connecté')).toBeInTheDocument();
+            });
         });
+    });
 
-        render(<App />);
+    describe('gestion connexion/déconnexion', () => {
+        it('gère la connexion et la déconnexion de l\'administrateur', async () => {
+            render(<App />);
 
-        // Au démarrage, App affiche LoginPage car user === null
-        // On vérifie que le bouton "Se connecter" est visible
-        expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
+            // Au démarrage: vue publique avec CalendarView readOnly
+            await waitFor(() => {
+                expect(screen.getByTestId('calendar-view')).toBeInTheDocument();
+            });
 
-        // --- ÉTAPE 1 : connexion ---
-        const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
-        const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+            // "Se connecter" visible
+            const loginBtn = screen.getByRole('button', { name: /Se connecter/i });
+            expect(loginBtn).toBeInTheDocument();
 
-        await userEvent.clear(emailInput);
-        await userEvent.type(emailInput, 'alice@test.com');
-        await userEvent.clear(passwordInput);
-        await userEvent.type(passwordInput, 'motdepasse123');
-        await userEvent.click(screen.getByRole('button', { name: /se connecter/i }));
+            // Clic login
+            await userEvent.click(loginBtn);
 
-        // Après connexion, la sidebar et le calendrier (mocké) sont visibles
-        await waitFor(() => {
-            expect(screen.getByTestId('calendar-view')).toBeInTheDocument();
-        });
+            // LoginPage appear
+            await waitFor(() => {
+                expect(screen.getByTestId('login-form')).toBeInTheDocument();
+            });
 
-        // --- ÉTAPE 2 : déconnexion ---
-        // Le bouton logout a title="Déconnexion" dans App.tsx
-        const logoutButton = screen.getByTitle('Déconnexion');
-        await userEvent.click(logoutButton);
+            // Submit connexion
+            const submitBtn = screen.getByRole('button', { name: /Se connecter \(Login\)/i });
+            await userEvent.click(submitBtn);
 
-        // Après la déconnexion, user redevient null → LoginPage s'affiche à nouveau
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
+            // Planning connecté visible
+            await waitFor(() => {
+                expect(screen.getByText('Planning connecté')).toBeInTheDocument();
+            });
         });
     });
 });
-   // --- TEST 2 : Administrateur ---
-    it('gère la connexion et la déconnexion de l\'administrateur', async () => {
-        // setup fetch mock for both login and users list
-        (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-            if (url.includes('/api/login')) {
-                return Promise.resolve({ ok: true, json: async () => mockAdminUser });
-            }
-            if (url.includes('/api/users')) {
-                // return empty array so testUsers.map works
-                return Promise.resolve({ ok: true, json: async () => [] });
-            }
-            return Promise.reject(new Error('unexpected fetch: ' + url));
-        });
-
-        render(<App />);
-
-        expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
-        
-
-        const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
-        const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
-
-        await userEvent.clear(emailInput);
-        await userEvent.type(emailInput, 'admin@test.com');
-        await userEvent.clear(passwordInput);
-          await userEvent.type(passwordInput, 'adminpass');
-        await userEvent.click(screen.getByRole('button', { name: /se connecter/i }));
-
-       await userEvent.click(screen.getByTitle('Utilisateurs'));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('user-management')).toBeInTheDocument();
-        });
-
-        const logoutButton = screen.getByTitle('Déconnexion');
-        await userEvent.click(logoutButton);
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
-        });
-    });

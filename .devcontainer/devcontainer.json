@@ -3,10 +3,10 @@
     "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
     "features": {},
     "forwardPorts": [
-        3000
+        6565
     ],
     "portsAttributes": {
-        "3000": {
+        "6565": {
             "label": "App",
             "onAutoForward": "notify",
             "visibility": "public"

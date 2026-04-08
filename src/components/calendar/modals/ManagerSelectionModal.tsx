@@ -57,13 +57,13 @@ export default function ManagerSelectionModal({
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Sélectionnez un service civique responsable pour cette journée :
           </p>
-          
+
           <button
-              onClick={() => onSelect(null)}
-              className="w-full text-left p-4 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-sm font-bold text-zinc-500 hover:text-red-500"
-            >
-              Aucun responsable (Retirer)
-            </button>
+            onClick={() => onSelect(null)}
+            className="w-full text-left p-4 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-sm font-bold text-zinc-500 hover:text-red-500"
+          >
+            Aucun responsable (Retirer)
+          </button>
 
           <div className="space-y-2">
             {civicServices.map((u) => (
@@ -73,8 +73,15 @@ export default function ManagerSelectionModal({
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 transition-all text-left"
               >
                 <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-black text-sm shrink-0">
-                  {u.firstname[0]}
-                  {u.lastname[0]}
+                  {u.profile_picture_url ? (
+                    <img
+                      src={u.profile_picture_url}
+                      alt={`${u.firstname} ${u.lastname}`}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    `${u.firstname[0]}${u.lastname[0]}`
+                  )}
                 </div>
                 <div>
                   <div className="font-bold text-zinc-900 dark:text-white">

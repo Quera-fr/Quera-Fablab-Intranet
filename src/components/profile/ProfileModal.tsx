@@ -2,6 +2,8 @@ import { useState, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { XCircle } from 'lucide-react';
 import { User } from '../../types';
+import { Ticket } from 'lucide-react';
+import { isGoldenTicketActive, goldenClasses } from '../../utils/goldenTicket';
 
 interface ProfileModalProps {
     user: User;
@@ -31,10 +33,27 @@ const ProfileModal = ({ user, onClose, onUpdate }: ProfileModalProps) => {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-zinc-200"
+                className={`bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border ${isGoldenTicketActive(user) ? 'border-amber-300' : 'border-zinc-200'}`}
             >
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black uppercase tracking-tight">Mon Profil</h3>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 ${
+                            isGoldenTicketActive(user) ? goldenClasses.avatar : 'bg-zinc-200 text-zinc-700'
+                        }`}>
+                            {user.profile_picture_url}
+                        </div>
+                        <div>
+                            <h3 className={`text-xl font-black uppercase tracking-tight ${isGoldenTicketActive(user) ? goldenClasses.name : ''}`}>
+                                Mon Profil
+                            </h3>
+                            {isGoldenTicketActive(user) && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                    <Ticket size={12} className="text-amber-500" />
+                                    <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Golden Ticket</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors"><XCircle size={24} /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">

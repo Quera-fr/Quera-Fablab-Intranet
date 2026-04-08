@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Constraint: Maximum 1 Activity per Day', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
+        await page.getByRole('button', { name: /Se connecter/i }).click();
+        await expect(page.locator('input[type="email"]')).toBeVisible();
         await page.fill('input[type="email"]', 'admin@assoc.fr');
         await page.fill('input[type="password"]', 'admin123');
 

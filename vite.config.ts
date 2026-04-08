@@ -20,11 +20,16 @@ export default defineConfig(({ mode }) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+<<<<<<< HEAD
       host: true, 
     
     // Autorise votre nom de domaine Synology
     allowedHosts:[
       'intranet-quera.synology.me', '*'
+=======
+      host: true,
+      allowedHosts: ['intranet-quera.synology.me', '*'],
+>>>>>>> dev
     },
     test: {
       globals: true,
