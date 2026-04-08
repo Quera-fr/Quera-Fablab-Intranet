@@ -576,6 +576,96 @@ const CalendarView = ({
     }
   };
 
+  const renderSessionCard = (s: Session) => {
+    const isRegistered = !!user && s.participants.some((p) => p.user_id === user.id);
+    const volunteerCount = s.participants.filter((p) => p.role_at_registration === "volunteer").length;
+    const beneficiaryCount = s.participants.filter((p) => p.role_at_registration === "beneficiary").length;
+
+    let bgColor = "bg-white";
+    let borderColor = "border-zinc-200";
+    let textColor = "text-zinc-900";
+
+    if (s.type === "homework_help") {
+      bgColor = "bg-blue-50 dark:bg-blue-900/20";
+      borderColor = "border-blue-200 dark:border-blue-800";
+      textColor = "text-blue-900 dark:text-blue-100";
+    } else if (s.type === "activity") {
+      if (s.status === "approved") {
+        bgColor = "bg-green-50 dark:bg-green-900/20";
+        borderColor = "border-green-300 dark:border-green-800";
+        textColor = "text-green-900 dark:text-green-100";
+      } else {
+        bgColor = "bg-zinc-100 dark:bg-zinc-800";
+        borderColor = "border-zinc-200 dark:border-zinc-700";
+        textColor = "text-zinc-400 dark:text-zinc-500";
+      }
+    } else if (s.type === "room_booking") {
+      bgColor = "bg-amber-50 dark:bg-amber-900/20";
+      borderColor = "border-amber-200 dark:border-amber-800";
+      textColor = "text-amber-900 dark:text-amber-100";
+    }
+
+    const isSelected = selectedSessionIds.includes(s.id);
+
+    return (
+      <motion.div
+        layoutId={`session-${s.id}`}
+        key={s.id}
+        draggable={canDragSessions}
+        onDragStart={(e: any) => {
+          const dragEvent = e as DragEvent & { dataTransfer: DataTransfer };
+          if (dragEvent.dataTransfer) {
+             dragEvent.dataTransfer.setData("text/plain", String(s.id));
+             dragEvent.dataTransfer.effectAllowed = "move";
+          }
+          draggedSessionRef.current = { id: s.id, type: s.type };
+        }}
+        onClick={() => {
+          if (isGuest) return;
+          if (isSelectionMode) {
+            setSelectedSessionIds((prev) => prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id]);
+          } else {
+            setSelectedSessionId(s.id);
+          }
+        }}
+        className={`p-3 rounded-xl border-2 ${bgColor} ${borderColor} cursor-pointer hover:shadow-lg transition-all relative group overflow-hidden ${isSelected ? "ring-2 ring-red-500" : ""}`}
+      >
+        <div className="flex items-center gap-1 text-[9px] font-black text-zinc-400 mb-1 uppercase tracking-widest">
+          <Clock size={10} />
+          {formatTime(s.start_time)}
+        </div>
+        <h4 className={`text-xs font-black uppercase tracking-tight leading-tight ${textColor} line-clamp-2`}>
+          {s.type === "homework_help" ? "Aide devoirs" : s.type === "room_booking" ? "Réservation du local" : (s.title ?? "")}
+        </h4>
+        {s.type === "activity" && s.image_url && (
+          <div className="mt-2 w-full h-16 rounded-lg overflow-hidden border border-zinc-100 shadow-sm shrink-0">
+            <img src={s.image_url} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+            <Users size={8} /> {s.type === "room_booking" ? `Réservé par ${s.participants[0]?.firstname || "?"}` : `Encadrants ${volunteerCount}/3`}
+          </span>
+          {s.type === "homework_help" && (
+            <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+              <Users size={8} /> Jeunes {beneficiaryCount}/15
+            </span>
+          )}
+          {s.type === "activity" && (
+            <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+              <Users size={8} /> Jeunes {beneficiaryCount}/${s.max_participants || "∞"}
+            </span>
+          )}
+        </div>
+        {isRegistered && (
+          <div className="absolute top-2 right-2 text-black dark:text-white">
+            <CheckCircle size={14} />
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -676,16 +766,17 @@ const CalendarView = ({
                 </div>
               )}
 
-              {(user?.role === "civic_service" || user?.role === "admin") && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddActivity(true)}
-                  className="flex items-center gap-2 bg-green-100 dark:bg-green-900/40 text-green-900 dark:text-green-100 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800/60 transition-all font-bold text-[10px] uppercase tracking-widest shadow-lg"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nouvelle Activité
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentDate(new Date());
+                  setViewMode("week");
+                }}
+                className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all font-bold text-[10px] uppercase tracking-widest shadow-lg"
+              >
+                <CalendarIcon className="w-4 h-4" />
+                Aujourd'hui
+              </button>
 
               {(user?.role === "admin" || user?.role === "civic_service") && (
                 <>
@@ -695,13 +786,6 @@ const CalendarView = ({
                     className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-all font-bold text-[10px] uppercase tracking-widest shadow-lg"
                   >
                     Semaine Type
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddRoom(true)}
-                    className="flex items-auto  bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border border-amber-200 dark:border-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/60 transition-all font-bold text-[10px] uppercase tracking-widest shadow-lg"
-                  >
-                    Résa. Local
                   </button>
                   {isSelectionMode ? (
                     <div className="flex gap-2">
@@ -749,7 +833,51 @@ const CalendarView = ({
           className="w-full"
         >
           {viewMode === "week" && (
-            <div className="overflow-x-auto pt-3">
+            <>
+            {/* --- VERSION MOBILE : LISTE --- */}
+            <div className="md:hidden flex flex-col gap-4 pt-4">
+              {daysInWeek.map((day) => {
+                const isToday = day.toDateString() === new Date().toDateString();
+                const daySessions = sessions.filter(s => new Date(s.start_time).toDateString() === day.toDateString());
+                
+                return (
+                  <div key={day.toISOString()} className={`rounded-xl border p-4 ${isToday ? "bg-white dark:bg-zinc-800 border-black dark:border-white shadow-lg" : "bg-white/50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"}`}>
+                    <h3 className={`text-sm font-black capitalize break-words mb-4 ${isToday ? "text-black dark:text-white" : "text-zinc-900 dark:text-zinc-100"}`}>
+                      {day.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </h3>
+                    
+                    <div className="flex flex-col gap-4">
+                      {SESSION_ROW_TYPES.map(rowType => {
+                        const rowSessions = daySessions.filter(s => s.type === rowType).sort((a,b) => a.start_time.localeCompare(b.start_time));
+                        if (rowSessions.length === 0 && !canManageRow(rowType)) return null; 
+
+                        return (
+                          <div key={rowType} className="flex flex-col gap-2">
+                             <div className="flex items-center justify-between">
+                                <h4 className="text-xs uppercase font-black tracking-widest text-zinc-500">{ROW_LABELS[rowType]}</h4>
+                                {canManageRow(rowType) && (
+                                   <button type="button" onClick={() => openFormForRow(rowType, day)} className="p-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-colors">
+                                     <Plus size={14} />
+                                   </button>
+                                )}
+                             </div>
+                             <div className="flex flex-col gap-2">
+                                {rowSessions.map(s => renderSessionCard(s))}
+                                {rowSessions.length === 0 && (
+                                   <div className="text-[10px] text-zinc-400 italic bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg text-center">Aucune session prévue</div>
+                                )}
+                             </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* --- VERSION BUREAU : GRILLE --- */}
+            <div className="hidden md:block overflow-x-auto pt-3">
               <div className="grid gap-2 mb-2 grid-cols-7 w-full">
                 {daysInWeek.map((day) => {
                   const isToday =
@@ -889,133 +1017,7 @@ const CalendarView = ({
                             draggedSessionRef.current = null;
                           }}
                         >
-                          {daySessions.map((s) => {
-                            const isRegistered =
-                              !!user &&
-                              s.participants.some((p) => p.user_id === user.id);
-                            const volunteerCount = s.participants.filter(
-                              (p) => p.role_at_registration === "volunteer",
-                            ).length;
-                            const beneficiaryCount = s.participants.filter(
-                              (p) => p.role_at_registration === "beneficiary",
-                            ).length;
-
-                            let bgColor = "bg-white";
-                            let borderColor = "border-zinc-200";
-                            let textColor = "text-zinc-900";
-
-                            if (s.type === "homework_help") {
-                              bgColor = "bg-blue-50 dark:bg-blue-900/20";
-                              borderColor =
-                                "border-blue-200 dark:border-blue-800";
-                              textColor = "text-blue-900 dark:text-blue-100";
-                            } else if (s.type === "activity") {
-                              if (s.status === "approved") {
-                                bgColor = "bg-green-50 dark:bg-green-900/20";
-                                borderColor =
-                                  "border-green-300 dark:border-green-800";
-                                textColor =
-                                  "text-green-900 dark:text-green-100";
-                              } else {
-                                bgColor = "bg-zinc-100 dark:bg-zinc-800";
-                                borderColor =
-                                  "border-zinc-200 dark:border-zinc-700";
-                                textColor = "text-zinc-400 dark:text-zinc-500";
-                              }
-                            } else if (s.type === "room_booking") {
-                              bgColor = "bg-amber-50 dark:bg-amber-900/20";
-                              borderColor =
-                                "border-amber-200 dark:border-amber-800";
-                              textColor = "text-amber-900 dark:text-amber-100";
-                            }
-
-                            const isSelected = selectedSessionIds.includes(
-                              s.id,
-                            );
-
-                            return (
-                              <motion.div
-                                layoutId={`session-${s.id}`}
-                                key={s.id}
-                                draggable={canDragSessions}
-                                onDragStart={(e: DragEvent) => {
-                                  const dragEvent = e as DragEvent & {
-                                    dataTransfer: DataTransfer;
-                                  };
-                                  dragEvent.dataTransfer.setData(
-                                    "text/plain",
-                                    String(s.id),
-                                  );
-                                  dragEvent.dataTransfer.effectAllowed = "move";
-                                  draggedSessionRef.current = {
-                                    id: s.id,
-                                    type: s.type,
-                                  };
-                                }}
-                                onClick={() => {
-                                  if (isGuest) return;
-                                  if (isSelectionMode) {
-                                    setSelectedSessionIds((prev) =>
-                                      prev.includes(s.id)
-                                        ? prev.filter((id) => id !== s.id)
-                                        : [...prev, s.id],
-                                    );
-                                  } else {
-                                    setSelectedSessionId(s.id);
-                                  }
-                                }}
-                                className={`p-3 rounded-xl border-2 ${bgColor} ${borderColor} cursor-pointer hover:shadow-lg transition-all relative group overflow-hidden ${isSelected ? "ring-2 ring-red-500" : ""}`}
-                              >
-                                <div className="flex items-center gap-1 text-[9px] font-black text-zinc-400 mb-1 uppercase tracking-widest">
-                                  <Clock size={10} />
-                                  {formatTime(s.start_time)}
-                                </div>
-                                <h4
-                                  className={`text-xs font-black uppercase tracking-tight leading-tight ${textColor} line-clamp-2`}
-                                >
-                                  {s.type === "homework_help"
-                                    ? "Aide devoirs"
-                                    : s.type === "room_booking"
-                                      ? "Réservation du local"
-                                      : (s.title ?? "")}
-                                </h4>
-                                {s.type === "activity" && s.image_url && (
-                                  <div className="mt-2 w-full h-16 rounded-lg overflow-hidden border border-zinc-100 shadow-sm shrink-0">
-                                    <img
-                                      src={s.image_url}
-                                      alt=""
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                )}
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                  <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                                    <Users size={8} />{" "}
-                                    {s.type === "room_booking"
-                                      ? `Réservé par ${s.participants[0]?.firstname || "?"}`
-                                      : `Encadrants ${volunteerCount}/3`}
-                                  </span>
-                                  {s.type === "homework_help" && (
-                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                                      <Users size={8} /> Jeunes{" "}
-                                      {beneficiaryCount}/15
-                                    </span>
-                                  )}
-                                  {s.type === "activity" && (
-                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                                      <Users size={8} /> Jeunes{" "}
-                                      {beneficiaryCount}/{s.max_participants}
-                                    </span>
-                                  )}
-                                </div>
-                                {isRegistered && (
-                                  <div className="absolute top-2 right-2 text-black dark:text-white">
-                                    <CheckCircle size={14} />
-                                  </div>
-                                )}
-                              </motion.div>
-                            );
-                          })}
+                          {daySessions.map((s) => renderSessionCard(s))}
                           {canManageRow(rowType) &&
                             daySessions.length === 0 && (
                               <button
@@ -1032,14 +1034,17 @@ const CalendarView = ({
                 </div>
               ))}
             </div>
+            </>
           )}
 
           {viewMode === "month" && (
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-5 md:grid-cols-7 gap-2">
               {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d, i) => (
                 <div
                   key={i}
-                  className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-400 py-2"
+                  className={`text-center text-[10px] font-black uppercase tracking-widest text-zinc-400 py-2 ${
+                    i >= 5 ? "hidden md:block" : ""
+                  }`}
                 >
                   {d}
                 </div>
@@ -1058,7 +1063,9 @@ const CalendarView = ({
                 return (
                   <div
                     key={i}
-                    className={`min-h-[100px] border rounded-xl p-2 ${isCurrentMonth ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white" : "bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800 text-zinc-400"} ${isToday ? "ring-2 ring-black dark:ring-white" : ""}`}
+                    className={`min-h-[100px] border rounded-xl p-2 ${
+                      day.getDay() === 0 || day.getDay() === 6 ? "hidden md:block" : ""
+                    } ${isCurrentMonth ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white" : "bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800 text-zinc-400"} ${isToday ? "ring-2 ring-black dark:ring-white" : ""}`}
                   >
                     <p
                       className={`text-xs font-black mb-2 ${isToday ? "text-black dark:text-white" : ""}`}

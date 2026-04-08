@@ -209,6 +209,11 @@ const SessionModal = ({
                               minHeight: "unset",
                             }),
                             menu: (base) => ({ ...base, zIndex: 9999 }),
+                            option: (base, state) => ({
+                              ...base,
+                              color: "#000",
+                              backgroundColor: state.isFocused ? "#f4f4f5" : "#fff",
+                            }),
                             multiValue: (base) => ({
                               ...base,
                               backgroundColor: "#000",
@@ -299,6 +304,11 @@ const SessionModal = ({
                               minHeight: "unset",
                             }),
                             menu: (base) => ({ ...base, zIndex: 9999 }),
+                            option: (base, state) => ({
+                              ...base,
+                              color: "#000",
+                              backgroundColor: state.isFocused ? "#f4f4f5" : "#fff",
+                            }),
                             multiValue: (base) => ({
                               ...base,
                               backgroundColor: "#2563eb",

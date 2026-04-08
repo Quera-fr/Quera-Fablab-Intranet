@@ -243,6 +243,12 @@ async function initializeDatabase() {
     await ensureColumnExists(
       conn,
       "quera_points",
+      "status",
+      "VARCHAR(50) DEFAULT 'validated'",
+    );
+    await ensureColumnExists(
+      conn,
+      "quera_points",
       "movement_type",
       "VARCHAR(50) NOT NULL DEFAULT 'earned'",
     );

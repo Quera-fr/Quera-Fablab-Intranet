@@ -43,6 +43,45 @@ export default function App() {
     | "shop"
   >("planning");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
+  const [sidebarWidth, setSidebarWidth] = useState(288);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 600) newWidth = 600;
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    } else {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
+
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem("theme") === "dark";
   });
@@ -114,10 +153,18 @@ export default function App() {
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
       {/* Sidebar */}
       <aside
-        className={`${isSidebarCollapsed ? "w-20" : "w-20 md:w-72"} ${user && isGoldenTicketActive(user) ? goldenClasses.sidebar : "bg-white text-black"} dark:bg-zinc-900 border-r dark:text-white border-zinc-200 dark:border-zinc-800 flex flex-col sticky top-0 h-screen transition-all duration-300 z-40 shrink-0 overflow-hidden`}
+        style={{ "--sidebar-width": `${isSidebarCollapsed ? 80 : sidebarWidth}px` } as React.CSSProperties}
+        className={`max-md:w-20 md:w-[var(--sidebar-width)] ${user && isGoldenTicketActive(user) ? goldenClasses.sidebar : "bg-white text-black"} dark:bg-zinc-900 border-r dark:text-white border-zinc-200 dark:border-zinc-800 flex flex-col sticky top-0 h-screen z-40 shrink-0 relative ${!isResizing ? "transition-all duration-300" : "transition-colors duration-300"}`}
       >
+        {/* Resize Handle */}
+        {!isSidebarCollapsed && (
+          <div
+            onMouseDown={startResizing}
+            className="hidden md:block absolute -right-1 top-0 w-2 h-full cursor-col-resize hover:bg-black/10 dark:hover:bg-white/10 z-50 transition-colors"
+          />
+        )}
         <div
-          className={`p-4 flex flex-col gap-4 grow ${isSidebarCollapsed ? "items-center" : "md:items-start md:p-6"}`}
+          className={`p-4 flex flex-col gap-4 grow overflow-x-hidden ${isSidebarCollapsed ? "items-center" : "md:items-start md:p-6"}`}
         >
           <div
             className={`flex items-center w-full mb-8 ${isSidebarCollapsed ? "flex-col gap-4" : "justify-between"}`}
